@@ -4,37 +4,42 @@ import { procesarMensaje } from '@/lib/bot/orquestador'
 import { enviarTexto, enviarImagen } from '@/lib/whatsapp/ycloud'
 
 export async function POST(req: Request) {
+  let stage = 'init'
   try {
     const body = await req.json()
-    console.log('[webhook] payload:', JSON.stringify(body).slice(0, 500))
-
-    // YCloud envía: body.type = "whatsapp.inbound_message.received"
-    // body.data contiene el mensaje
     const eventType = body?.type ?? ''
     const msg = body?.data
 
-    // Solo procesar mensajes entrantes de WhatsApp
-    // Aceptamos si el type incluye 'inbound' O si body.data tiene 'from' y 'to'
+    // Log todo de una vez — Vercel MCP sólo muestra 1 línea por request
+    console.log('[wh]', JSON.stringify({
+      stage: 'recv',
+      type: eventType,
+      from: msg?.from,
+      to: msg?.to,
+      msgType: msg?.type,
+      textBody: msg?.text?.body?.slice(0, 60),
+      hasData: !!msg,
+    }))
+
     const esInbound =
       eventType.includes('inbound') ||
       eventType.includes('message') ||
       (msg?.from && msg?.to)
 
     if (!msg || !esInbound) {
-      console.log('[webhook] ignorado — tipo:', eventType)
+      console.log('[wh] ignorado tipo:', eventType)
       return NextResponse.json({ ok: true })
     }
 
-    // Normalizar teléfonos (quitar + si viene)
     const clientePhone = String(msg.from ?? '').replace('+', '')
     const botPhone     = String(msg.to   ?? '').replace('+', '')
     const tipo         = String(msg.type ?? 'text')
 
-    console.log('[webhook] de:', clientePhone, '→ bot:', botPhone, 'tipo:', tipo)
+    if (!clientePhone || !botPhone) {
+      console.log('[wh] sin phones, from:', msg.from, 'to:', msg.to)
+      return NextResponse.json({ ok: true })
+    }
 
-    if (!clientePhone || !botPhone) return NextResponse.json({ ok: true })
-
-    // Extraer contenido según tipo de mensaje
     let texto = ''
     let imagenUrl: string | undefined
     let tipoNorm: 'text' | 'image' | 'audio' | 'otro' = 'text'
@@ -55,24 +60,23 @@ export async function POST(req: Request) {
     }
 
     if (!texto && !imagenUrl) {
-      console.log('[webhook] sin contenido extraíble')
+      console.log('[wh] sin contenido, tipo:', tipo)
       return NextResponse.json({ ok: true })
     }
 
-    console.log('[webhook] texto:', texto.slice(0, 100))
-
-    // Buscar usuario dueño de este número de bot
+    stage = 'db-settings'
     const admin = createAdminClient()
 
-    const { data: settings } = await admin
+    const { data: settings, error: settingsErr } = await admin
       .from('user_settings')
       .select('user_id, ycloud_api_key, bot_activo')
       .eq('bot_phone', botPhone)
       .eq('bot_activo', true)
       .maybeSingle()
 
+    console.log('[wh] settings lookup — botPhone:', botPhone, 'found:', !!settings, 'err:', settingsErr?.message ?? null)
+
     if (!settings) {
-      console.log('[webhook] no se encontró usuario con bot_phone:', botPhone)
       return NextResponse.json({ ok: true })
     }
 
@@ -80,7 +84,7 @@ export async function POST(req: Request) {
     const botPhoneConPlus = `+${botPhone}`
     const clientePhoneConPlus = `+${clientePhone}`
 
-    // Procesar con el orquestador multiagéntico
+    stage = 'orquestador'
     const resultado = await procesarMensaje({
       clientePhone: clientePhoneConPlus,
       botPhone: botPhoneConPlus,
@@ -91,26 +95,23 @@ export async function POST(req: Request) {
     })
 
     if (!resultado) {
-      console.log('[webhook] conversación pausada, sin respuesta')
+      console.log('[wh] sin respuesta (pausado)')
       return NextResponse.json({ ok: true })
     }
 
-    console.log('[webhook] respuesta generada:', resultado.respuesta.slice(0, 100))
-
-    // Enviar multimedia primero si hay
+    stage = 'send'
     if (resultado.multimediaUrls?.length) {
       for (const url of resultado.multimediaUrls) {
         await enviarImagen({ to: clientePhoneConPlus, imageUrl: url, fromPhone: botPhoneConPlus, apiKey })
       }
     }
 
-    // Enviar respuesta de texto
     await enviarTexto({ to: clientePhoneConPlus, text: resultado.respuesta, fromPhone: botPhoneConPlus, apiKey })
+    console.log('[wh] OK enviado a', clientePhoneConPlus)
 
-    console.log('[webhook] mensaje enviado OK')
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[webhook/ycloud] error:', err)
+    console.error('[wh] ERROR stage=' + stage, String(err))
     return NextResponse.json({ ok: true })
   }
 }
