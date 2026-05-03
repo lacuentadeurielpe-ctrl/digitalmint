@@ -1,21 +1,27 @@
 import { deepseekText } from '@/lib/ai/deepseek'
 import type { ContextoAgente, RespuestaAgente, EstadoConversacion } from './tipos'
 
-// Palabras que indican interés genuino para avanzar de calificando → presentando
-const RE_INTERES = /\b(s[íi]|claro|me\s+interesa|cu[eé]ntame|c[oó]mo\s+funciona|exacto|eso\s+es|quiero\s+saber|me\s+parece|cuánto|precio|cu[aá]nto)\b/i
-// Palabras que indican listo para cierre
-const RE_LISTO = /\b(me\s+convenc[eé]|me\s+interesa\s+mucho|quiero|lo\s+compro|dale|ok|perfecto|suena\s+bien|vamos)\b/i
+const RE_INTERES = /\b(s[íi]|claro|me\s+interesa|cu[eé]ntame|c[oó]mo|quiero\s+saber|cu[aá]nto|precio|de\s+qu[eé]\s+trata|m[aá]s\s+info)\b/i
+const RE_LISTO   = /\b(lo\s+quiero|lo\s+compro|dale|ok|vamos|perfecto|me\s+apunto|c[oó]mo\s+pago|quiero\s+comprarlo|me\s+interesa\s+comprarlo|comprar)\b/i
+const RE_OBJECION = /\b(caro|mucho|no\s+tengo|pensarlo|despu[eé]s|luego|no\s+s[eé]|duda|tiempo|espera)\b/i
 
 function siguienteEstado(actual: EstadoConversacion, mensaje: string): EstadoConversacion {
   if (actual === 'nuevo') return 'calificando'
   if (actual === 'calificando' && RE_INTERES.test(mensaje)) return 'presentando'
   if (actual === 'calificando') return 'calificando'
   if (actual === 'presentando') {
-    if (/\b(caro|costoso|pensarlo|no\s+s[eé]|duda|tiempo|despu[eé]s)\b/i.test(mensaje)) return 'objeciones'
+    if (RE_LISTO.test(mensaje)) return 'pago_pendiente'
+    if (RE_OBJECION.test(mensaje)) return 'objeciones'
     return 'cerrando'
   }
-  if (actual === 'objeciones') return 'cerrando'
-  if (actual === 'cerrando' && RE_LISTO.test(mensaje)) return 'pago_pendiente'
+  if (actual === 'objeciones') {
+    if (RE_LISTO.test(mensaje)) return 'pago_pendiente'
+    return 'cerrando'
+  }
+  if (actual === 'cerrando') {
+    if (RE_LISTO.test(mensaje)) return 'pago_pendiente'
+    return 'cerrando'
+  }
   return actual
 }
 
@@ -28,90 +34,87 @@ export async function ejecutarAgenteVentas(ctx: ContextoAgente): Promise<Respues
   const inv = ctx.inventarioSeleccionado ?? ctx.inventarioTodos.find(i => i.activo)
 
   if (!inv) {
-    return {
-      texto: 'Hola! 👋 Gracias por escribir. En este momento estamos preparando algo increíble para ti. Te avisamos pronto.',
-    }
+    return { texto: '¡Hola! 👋 Gracias por escribir. Pronto tenemos algo increíble para ti. Te aviso.' }
   }
 
   const p = inv.producto
   const v = p.vendedor_output
   const avatar = p.avatar_cliente
   const precioVenta = inv.precio_venta
-  const precioAnchor = inv.precio_tachado ?? p.estrategia_precio?.precio_anchor ?? Math.round(precioVenta * 3)
+  const precioAnchor = inv.precio_tachado ?? p.estrategia_precio?.precio_anchor ?? Math.round(precioVenta * 2.5)
 
   const historialStr = ctx.historial
-    .slice(-8)
+    .slice(-6)
     .map(m => `${m.role === 'user' ? 'Cliente' : 'Bot'}: ${m.content}`)
     .join('\n')
 
-  const nombreCliente = ctx.nombreCliente ? `\nNombre del cliente: ${ctx.nombreCliente}` : ''
+  const nc = ctx.nombreCliente ? ctx.nombreCliente : null
 
   const instruccionPorEstado: Record<string, string> = {
-    nuevo: `INSTRUCCIÓN: Primera vez que escribe. Personaliza el script de APERTURA según su mensaje. No copies literal — adapta el tono y contexto. Sé cálido, directo y genera curiosidad.`,
-    calificando: `INSTRUCCIÓN: Haz UNA sola pregunta de calificación basada en los dolores del avatar. El objetivo es confirmar que encaja con el producto. Si ya tienes suficiente info de sus mensajes, pasa directamente a la PRESENTACIÓN.`,
-    presentando: `INSTRUCCIÓN: Envía la PRESENTACIÓN completa. Incluye: precio anchor tachado (~$${precioAnchor}~) → precio real (*$${precioVenta}*). Termina con una pregunta de cierre suave tipo "¿Esto es lo que buscas?"`,
-    objeciones: `INSTRUCCIÓN: El cliente puso resistencia. Identifica qué objeción es y usa la respuesta pre-escrita que mejor aplique. Añade urgencia o escasez concreta al final. No te disculpes.`,
-    cerrando: `INSTRUCCIÓN: El cliente está convencido. Usa el script de CIERRE. Incluye escasez/urgencia. Termina invitándolo a que te diga cuando quiera comprar para darle los datos de pago.`,
+    nuevo: `INSTRUCCIÓN: Primera vez que escribe. Adapta el guion de apertura a su mensaje. Genera curiosidad en 2-3 líneas. NO expliques el producto todavía. Termina con UNA sola pregunta corta.`,
+    calificando: `INSTRUCCIÓN: Haz UNA sola pregunta de calificación rápida basada en los dolores del avatar. Si en el historial ya hay suficiente contexto, pasa directo a presentación.`,
+    presentando: `INSTRUCCIÓN: Presenta el producto. Usa formato WhatsApp con negritas. Muestra precio anchor tachado (~$${precioAnchor}~) y precio real (*$${precioVenta}*). Menciona que el acceso es INMEDIATO al pagar. Termina con "¿Te lo envío ahora?" o similar.`,
+    objeciones: `INSTRUCCIÓN: Responde la objeción directamente. Usa la respuesta preescrita más cercana. Recuerda que es acceso instantáneo y bajo precio. Reafirma el valor. Una frase de escasez/urgencia al final.`,
+    cerrando: `INSTRUCCIÓN: El cliente está casi listo. Usa el guion de cierre. Recuerda: acceso inmediato, precio especial. Dile que solo necesita hacer la transferencia y en segundos recibe el acceso. Invítalo a pagar.`,
   }
 
   const instruccion = instruccionPorEstado[ctx.estado] ?? instruccionPorEstado.calificando
 
-  const sistema = `Eres un agente de ventas experto en psicología de conversión para WhatsApp. Tu única misión es vender el siguiente producto digital. Eres preciso, confiado y empático.
+  const sistema = `Eres un vendedor experto en productos digitales low-ticket para WhatsApp. Vendes UN solo producto. Eres directo, cálido, sin rodeos. Escribes como un amigo que recomienda algo bueno.
 
 ━━━ PRODUCTO ━━━
 Nombre: ${p.nombre_producto}
-Subtítulo: ${p.subtitulo ?? ''}
 Tipo: ${p.tipo_producto ?? 'producto digital'}
-Transformación: De "${p.promesa_before ?? ''}" → A "${p.promesa_after ?? ''}"
+Transformación: "${p.promesa_before ?? '...'}" → "${p.promesa_after ?? '...'}"
 Precio tachado: ~$${precioAnchor}~ | Precio real: *$${precioVenta}*
+Entrega: acceso INMEDIATO al confirmar pago (link directo)
 ${inv.prueba_social ? `Prueba social: ${inv.prueba_social}` : ''}
 ${inv.escasez_texto ? `Escasez: ${inv.escasez_texto}` : ''}
 
-━━━ COMPRADOR IDEAL ━━━
+━━━ CLIENTE IDEAL ━━━
 ${avatar ? `${avatar.nombre_ficticio}, ${avatar.edad}, ${avatar.ocupacion}
-Sus dolores: ${avatar.dolores.join(' | ')}
-Sus deseos: ${avatar.deseos.join(' | ')}
-Objeciones típicas: ${avatar.objeciones.join(' | ')}
-Cómo habla de su problema: "${avatar.cita_directa}"` : 'No disponible'}
+Dolores: ${avatar.dolores.slice(0, 3).join(' | ')}
+Deseos: ${avatar.deseos.slice(0, 3).join(' | ')}
+Objeciones típicas: ${avatar.objeciones.slice(0, 3).join(' | ')}
+Cómo habla: "${avatar.cita_directa}"` : 'No disponible'}
 
-━━━ SCRIPTS PROBADOS ━━━
+━━━ GUIONES PROBADOS ━━━
 [APERTURA]:
-${v?.guion_apertura_whatsapp ?? `Hola! Vi que te interesa ${p.nombre_producto}. ¿Qué resultado específico estás buscando?`}
+${v?.guion_apertura_whatsapp ?? `Hola! ¿Buscas ${p.promesa_after ?? 'mejorar tus resultados'}? Tengo algo justo para ti.`}
 
 [PRESENTACIÓN]:
-${v?.guion_presentacion_producto ?? `${p.nombre_producto}: ${p.subtitulo ?? ''}`}
+${v?.guion_presentacion_producto ?? `${p.nombre_producto}: ${p.subtitulo ?? ''}\nAcceso inmediato · Solo $${precioVenta}`}
 
 [CIERRE]:
-${v?.guion_cierre ?? `¿Estás listo/a para dar el siguiente paso y transformar tu situación?`}
+${v?.guion_cierre ?? `¿Te lo envío ahora? Es solo $${precioVenta} y el acceso llega al instante.`}
 
-[OBJECIONES RESPONDIDAS]:
-${v?.respuestas_objeciones?.map(o => `"${o.objecion}" → ${o.respuesta}`).join('\n') ?? 'Usa los dolores del avatar para responder objeciones.'}
+[OBJECIONES]:
+${v?.respuestas_objeciones?.map(o => `"${o.objecion}" → ${o.respuesta}`).join('\n') ?? 'Usa los dolores del avatar.'}
 
-━━━ REGLAS DE ORO ━━━
-1. Máximo 4 oraciones por respuesta. WhatsApp ≠ email.
-2. Precio anchor SIEMPRE primero tachado, luego el real en negrita.
-3. UNA sola pregunta por mensaje. Nunca dos.
-4. Usa el nombre del cliente si lo sabes.
-5. Nunca pidas disculpas. Nunca digas "lamentablemente". Eres el experto.
-6. Emojis: máximo 2 por mensaje, solo si aportan.
-7. Responde SOLO el texto del mensaje. Sin comillas. Sin explicaciones.`
+━━━ REGLAS (no negociables) ━━━
+1. Máximo 3 líneas por respuesta. Los mensajes largos se ignoran en WhatsApp.
+2. UNA sola pregunta por mensaje. Nunca dos.
+3. Precio anchor siempre tachado primero, luego el real en negrita.
+4. Nunca digas "lamentablemente", "disculpe" ni "entiendo tu preocupación".
+5. Cuando el cliente quiera pagar: dile que solo necesita enviar la transferencia y el acceso llega al instante.
+6. Emojis: máximo 1-2 por mensaje.
+7. Responde SOLO el texto. Sin comillas. Sin explicaciones.`
 
-  const usuario = `Estado actual: ${ctx.estado}${nombreCliente}
+  const usuario = `Estado: ${ctx.estado}${nc ? ` | Cliente: ${nc}` : ''}
 
 Historial:
 ${historialStr}
 
-Mensaje del cliente: "${ctx.mensaje}"
+Mensaje: "${ctx.mensaje}"
 
 ${instruccion}`
 
-  const respuesta = await deepseekText(sistema, usuario, 500)
+  const respuesta = await deepseekText(sistema, usuario, 400)
   const texto = respuesta.trim().replace(/^[""]|[""]$/g, '')
 
   const nextEstado = siguienteEstado(ctx.estado, ctx.mensaje)
   const nombreDetectado = detectarNombre(ctx.mensaje)
 
-  // Enviar multimedia (imagen del producto) al pasar a "presentando"
   const multimedia = (ctx.estado === 'calificando' && nextEstado === 'presentando')
     ? inv.multimedia_urls.slice(0, 1)
     : undefined
@@ -119,7 +122,7 @@ ${instruccion}`
   return {
     texto,
     nuevoEstado: nextEstado,
-    nuevoAgente: 'ventas',
+    nuevoAgente: nextEstado === 'pago_pendiente' ? 'pagos' : 'ventas',
     inventarioIdElegido: inv.id,
     multimediaUrls: multimedia,
     nombreClienteDetectado: nombreDetectado,

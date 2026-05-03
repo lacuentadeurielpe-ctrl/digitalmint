@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { procesarMensaje } from '@/lib/bot/orquestador'
+import { procesarPagoDigital } from '@/lib/bot/pago-auto'
 import { enviarTexto, enviarImagen, descargarMedia } from '@/lib/whatsapp/ycloud'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
 
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     if (!msg) {
-      console.log('[wh] sin mensaje, dataKeys:', body?.data ? Object.keys(body.data) : [])
+      console.log('[wh] sin mensaje extraíble')
       return NextResponse.json({ ok: true })
     }
 
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     const tipo         = String(msg.type ?? 'text')
 
     if (!clientePhone || !botPhone) {
-      console.log('[wh] phones vacíos, from:', msg.from, 'to:', msg.to)
+      console.log('[wh] phones vacíos from:', msg.from, 'to:', msg.to)
       return NextResponse.json({ ok: true })
     }
 
@@ -58,14 +59,14 @@ export async function POST(req: Request) {
       .maybeSingle()
 
     console.log('[wh] settings botPhone=' + botPhone + ' found=' + !!settings)
-
     if (!settings) return NextResponse.json({ ok: true })
 
     const apiKey      = (settings.ycloud_api_key as string | null) ?? process.env.YCLOUD_API_KEY ?? ''
     const botPlus     = `+${botPhone}`
     const clientePlus = `+${clientePhone}`
+    const userId      = settings.user_id as string
 
-    // ── Extraer contenido según tipo ────────────────────────────────────────
+    // ── Procesar según tipo de mensaje ────────────────────────────────────────
     stage = 'media'
     let texto = ''
     let imagenUrl: string | undefined
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
           const mimeType = (audioObj.mimeType as string) ?? (audioObj.mime_type as string) ?? media.mimeType
           const transcripcion = await transcribirAudio(media.buffer, mimeType)
           if (transcripcion) {
-            console.log('[wh] audio transcrito:', transcripcion.slice(0, 60))
+            console.log('[wh] audio→texto:', transcripcion.slice(0, 60))
             texto = transcripcion
             tipoNorm = 'text'
           }
@@ -93,10 +94,9 @@ export async function POST(req: Request) {
       }
 
       if (!texto) {
-        // Sin transcripción: pedir que escriba
         await enviarTexto({
           to: clientePlus,
-          text: '🎧 Recibí tu nota de voz. Por favor escríbeme tu consulta y te respondo enseguida 🙌',
+          text: '🎧 Recibí tu nota de voz. Escríbeme tu consulta y te respondo enseguida 🙌',
           fromPhone: botPlus,
           apiKey,
         })
@@ -112,58 +112,61 @@ export async function POST(req: Request) {
         const media = await descargarMedia(mediaId, apiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
-          console.log('[wh] Vision:', analisis?.tipo, analisis?.descripcion?.slice(0, 50))
+          console.log('[wh] Vision tipo=' + analisis?.tipo)
 
-          if (analisis?.tipo === 'comprobante_pago' && analisis.pago) {
-            // Registrar pago pendiente para revisión del dueño
-            const { data: conv } = await admin
-              .from('bot_conversations')
-              .select('id, inventario_id')
-              .eq('user_id', settings.user_id as string)
-              .eq('cliente_phone', clientePhone)
-              .maybeSingle()
-
-            await admin.from('pagos_pendientes').insert({
-              user_id: settings.user_id as string,
-              conversacion_id: conv?.id ?? null,
-              inventario_id: conv?.inventario_id ?? null,
-              monto: analisis.pago.monto,
-              metodo: analisis.pago.metodo,
-              numero_operacion: analisis.pago.numero_operacion,
-              comprobante_url: mediaId.startsWith('http') ? mediaId : null,
-              estado: 'pendiente',
-            })
-
-            const montoStr = analisis.pago.monto ? `S/ ${analisis.pago.monto.toFixed(2)}` : 'monto no legible'
-            await enviarTexto({
-              to: clientePlus,
-              text: `✅ ¡Recibí tu comprobante de pago (${montoStr})! Lo estoy revisando y te confirmo en breve. Si tienes el número de operación, puedes enviármelo también 🙌`,
-              fromPhone: botPlus,
+          if (analisis?.tipo === 'comprobante_pago') {
+            // ── Auto-confirmar pago ─────────────────────────────────────────
+            stage = 'pago'
+            const resultado = await procesarPagoDigital({
+              userId,
+              clientePhone: clientePlus,
+              botPhone: botPlus,
               apiKey,
+              datos: {
+                monto: analisis.pago?.monto ?? null,
+                metodo: analisis.pago?.metodo ?? null,
+                numero_operacion: analisis.pago?.numero_operacion ?? null,
+                comprobante_url: mediaId.startsWith('http') ? mediaId : null,
+              },
             })
+
+            console.log('[wh] pago ' + resultado.estado)
+
+            // Si no fue auto-confirmado, enviar mensaje al cliente
+            if (resultado.estado !== 'confirmado_auto') {
+              await enviarTexto({
+                to: clientePlus,
+                text: resultado.mensajeCliente,
+                fromPhone: botPlus,
+                apiKey,
+              })
+            }
+            // Si fue confirmado_auto, procesarPagoDigital ya envió el acceso
             return NextResponse.json({ ok: true })
           }
 
-          // Imagen que no es comprobante
+          // Imagen que no es comprobante → pasar al agente como descripción
           texto = caption || analisis?.descripcion || 'imagen enviada'
           imagenUrl = mediaId.startsWith('http') ? mediaId : undefined
           tipoNorm = 'image'
         }
       } else {
-        texto = caption || 'comprobante'
-        imagenUrl = mediaId?.startsWith('http') ? mediaId : undefined
-        tipoNorm = 'image'
+        // Sin Vision: si hay caption úsalo, si no responde genérico
+        if (caption) {
+          texto = caption
+          tipoNorm = 'text'
+        } else {
+          await enviarTexto({
+            to: clientePlus,
+            text: '📷 Vi tu foto. Cuéntame qué necesitas y te ayudo 🙌',
+            fromPhone: botPlus,
+            apiKey,
+          })
+          return NextResponse.json({ ok: true })
+        }
       }
 
-      if (!texto && !imagenUrl) {
-        await enviarTexto({
-          to: clientePlus,
-          text: '📷 Vi tu foto. Cuéntame qué necesitas y te ayudo 🙌',
-          fromPhone: botPlus,
-          apiKey,
-        })
-        return NextResponse.json({ ok: true })
-      }
+      if (!texto && !imagenUrl) return NextResponse.json({ ok: true })
 
     } else if (['sticker', 'reaction', 'unsupported'].includes(tipo)) {
       return NextResponse.json({ ok: true })
@@ -175,18 +178,19 @@ export async function POST(req: Request) {
 
     if (!texto && !imagenUrl) return NextResponse.json({ ok: true })
 
+    // ── Pasar al orquestador ──────────────────────────────────────────────────
     stage = 'orquestador'
     const resultado = await procesarMensaje({
       clientePhone: clientePlus,
       botPhone: botPlus,
-      userId: settings.user_id as string,
+      userId,
       mensaje: texto,
       tipoMensaje: tipoNorm,
       imagenUrl,
     })
 
-    if (!resultado) {
-      console.log('[wh] pausado, sin respuesta')
+    if (!resultado || !resultado.respuesta) {
+      console.log('[wh] sin respuesta')
       return NextResponse.json({ ok: true })
     }
 
