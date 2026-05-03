@@ -8,6 +8,7 @@ interface ExportButtonsProps {
   isComplete: boolean
   nombreProducto?: string
   subtitulo?: string | null
+  titulosOpciones?: string[]
 }
 
 const PLATFORMS = [
@@ -23,7 +24,7 @@ const THEME_OPTIONS: { key: PdfTheme; label: string; preview: string }[] = [
   { key: 'purple', label: 'Violeta', preview: 'bg-indigo-900 border-fuchsia-400/50' },
 ]
 
-export default function ExportButtons({ productId, isComplete, nombreProducto, subtitulo }: ExportButtonsProps) {
+export default function ExportButtons({ productId, isComplete, nombreProducto, subtitulo, titulosOpciones }: ExportButtonsProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, 'ok' | 'error'>>({})
   const [showCustomizer, setShowCustomizer] = useState(false)
@@ -155,6 +156,32 @@ export default function ExportButtons({ productId, isComplete, nombreProducto, s
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Personalización del PDF
           </p>
+
+          {/* AI title options */}
+          {titulosOpciones && titulosOpciones.length > 1 && (
+            <div>
+              <label className="text-xs text-slate-500 mb-2 block">
+                Opciones de título generadas por IA
+                <span className="ml-2 text-slate-600">— haz clic para usar</span>
+              </label>
+              <div className="space-y-1.5">
+                {titulosOpciones.map((titulo, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setConfig(c => ({ ...c, title: titulo }))}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs border transition ${
+                      config.title === titulo
+                        ? 'border-purple-500/60 bg-purple-500/15 text-purple-200'
+                        : 'border-white/8 bg-slate-800/60 text-slate-400 hover:border-purple-500/30 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-slate-600 font-mono mr-2">#{i + 1}</span>
+                    {titulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Title + Subtitle */}
           <div className="grid sm:grid-cols-2 gap-3">

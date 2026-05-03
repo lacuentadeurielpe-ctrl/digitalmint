@@ -20,6 +20,7 @@ type ProductRow = {
   estructura_producto: EstructuraProducto | null
   precio_sugerido: number | null
   estrategia_precio: EstrategiaPrecio | null
+  estratega_output: { titulos_alternativos?: string[] } | null
   ganchos_redes: string[] | null
   vendedor_output: Record<string, unknown> | null
   tipo_producto: string | null
@@ -99,6 +100,11 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
   const precio = p.estrategia_precio as EstrategiaPrecio | null
   const ganchos = p.ganchos_redes as string[] | null
   const vendedor = p.vendedor_output as VendedorUI | null
+  const estrategaOutput = p.estratega_output
+  const titulosOpciones = [
+    p.nombre_producto,
+    ...(estrategaOutput?.titulos_alternativos ?? []),
+  ].filter((t): t is string => !!t)
 
   const totalPalabras = p.tamano_total_palabras
     ?? secciones.reduce((sum, s) => sum + (s.palabras_count ?? 0), 0)
@@ -144,6 +150,7 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
         isComplete={p.status === 'complete'}
         nombreProducto={p.nombre_producto ?? undefined}
         subtitulo={p.subtitulo}
+        titulosOpciones={titulosOpciones}
       />
 
       {/* Transformación */}
