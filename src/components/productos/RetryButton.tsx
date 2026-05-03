@@ -39,8 +39,8 @@ export default function RetryButton({ productId }: Props) {
         await runAgente(productId, agente)
         setProgress(agente)
       }
-      // Agents 5 and 6 are optional bonuses — failure is not fatal
-      for (let agente = 5; agente <= 6; agente++) {
+      // Agents 5, 6, 7 are bonus — failure is not fatal
+      for (let agente = 5; agente <= 7; agente++) {
         setProgress(agente - 1)
         try {
           await runAgente(productId, agente)
@@ -63,10 +63,10 @@ export default function RetryButton({ productId }: Props) {
       <div className="mt-3 space-y-1">
         <div className="flex items-center gap-2 text-xs text-yellow-400">
           <span className="w-3 h-3 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />
-          Agente {progress + 1}/6 ejecutándose...
+          Agente {progress + 1}/7 ejecutándose...
         </div>
         <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-          <div className="h-full bg-yellow-500 rounded-full transition-all" style={{ width: `${(progress / 6) * 100}%` }} />
+          <div className="h-full bg-yellow-500 rounded-full transition-all" style={{ width: `${(progress / 7) * 100}%` }} />
         </div>
       </div>
     )

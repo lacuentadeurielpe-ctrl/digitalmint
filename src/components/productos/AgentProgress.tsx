@@ -7,7 +7,8 @@ const AGENTS = [
   { label: 'Estratega', desc: 'Definiendo nombre, precio, avatar y posicionamiento', icon: '🧠' },
   { label: 'Arquitecto', desc: 'Diseñando estructura y escribiendo la Biblia del producto', icon: '📐' },
   { label: 'Escritores', desc: 'Equipo paralelo escribiendo cada sección del producto', icon: '✍️' },
-  { label: 'Editor Jefe', desc: 'Redactando introducción, conclusión y tabla de contenidos', icon: '📝' },
+  { label: 'Editor — Introducción', desc: 'Redactando la introducción que engancha al lector', icon: '📖' },
+  { label: 'Editor — Conclusión', desc: 'Cerrando con la transformación y siguiente paso', icon: '🏁' },
   { label: 'Vendedor', desc: 'Creando scripts de WhatsApp y ganchos para Facebook Ads', icon: '🚀' },
 ]
 

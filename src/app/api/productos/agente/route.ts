@@ -5,7 +5,7 @@ import { runInvestigador } from '@/lib/ai/investigador'
 import { runEstrateга } from '@/lib/ai/estratega'
 import { runArquitecto } from '@/lib/ai/arquitecto'
 import { runEscritores } from '@/lib/ai/escritores'
-import { runEditor } from '@/lib/ai/editor'
+import { runIntro, runConclusion, buildToc } from '@/lib/ai/editor'
 import { runVendedor } from '@/lib/ai/vendedor'
 import type { InvestigadorOutput } from '@/lib/ai/investigador'
 import type { EstrategaOutput } from '@/lib/ai/estratega'
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     }
 
     // ── AGENTE 4: Escritores paralelos (DeepSeek) ──
-    // CRITICAL: This is when the product becomes usable. Mark complete here.
+    // CRITICAL: Marca producto como complete (ya hay contenido usable + TOC)
     if (agente === 4) {
       await admin.from('products').update({ current_agent: 4 }).eq('id', productId)
 
@@ -121,20 +121,32 @@ export async function POST(req: Request) {
         estratega.subtitulo
       )
 
-      const rows = secciones.map(s => ({
-        product_id: productId,
-        user_id: user.id,
-        orden: s.orden,
-        tipo_seccion: s.tipo_seccion,
-        titulo: s.titulo,
-        contenido: s.contenido,
-        palabras_count: s.palabras_count,
-      }))
+      const toc = buildToc(arquitecto.secciones)
+
+      const rows = [
+        {
+          product_id: productId,
+          user_id: user.id,
+          orden: toc.orden,
+          tipo_seccion: toc.tipo_seccion,
+          titulo: toc.titulo,
+          contenido: toc.contenido,
+          palabras_count: toc.palabras_count,
+        },
+        ...secciones.map(s => ({
+          product_id: productId,
+          user_id: user.id,
+          orden: s.orden,
+          tipo_seccion: s.tipo_seccion,
+          titulo: s.titulo,
+          contenido: s.contenido,
+          palabras_count: s.palabras_count,
+        })),
+      ]
 
       await admin.from('producto_contenido').insert(rows)
 
       const totalPalabras = secciones.reduce((sum, s) => sum + s.palabras_count, 0)
-      // Mark COMPLETE here — the product is usable. Agents 5 & 6 add bonus extras.
       await admin.from('products').update({
         tamano_total_palabras: totalPalabras,
         status: 'complete',
@@ -143,7 +155,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, next: 5 })
     }
 
-    // ── AGENTE 5 (OPCIONAL): Editor — Intro + Conclusion + TOC ──
+    // ── AGENTE 5: Editor — Introducción ──
     if (agente === 5) {
       await admin.from('products').update({ current_agent: 5 }).eq('id', productId)
 
@@ -151,39 +163,71 @@ export async function POST(req: Request) {
         const arquitecto = product.arquitecto_output as ArquitectoOutput
         const estratega = product.estratega_output as EstrategaOutput
 
-        const extras = await runEditor(
+        const intro = await runIntro(
           arquitecto.bible,
           arquitecto.secciones,
           estratega.nombre_producto,
           estratega.subtitulo
         )
 
-        const rows = extras.map(e => ({
+        await admin.from('producto_contenido').insert({
           product_id: productId,
           user_id: user.id,
-          orden: e.orden,
-          tipo_seccion: e.tipo_seccion,
-          titulo: e.titulo,
-          contenido: e.contenido,
-          palabras_count: e.palabras_count,
-        }))
+          orden: intro.orden,
+          tipo_seccion: intro.tipo_seccion,
+          titulo: intro.titulo,
+          contenido: intro.contenido,
+          palabras_count: intro.palabras_count,
+        })
 
-        await admin.from('producto_contenido').insert(rows)
-
-        const extraWords = extras.reduce((sum, e) => sum + e.palabras_count, 0)
         const current = (product.tamano_total_palabras as number) ?? 0
         await admin.from('products').update({
-          tamano_total_palabras: current + extraWords,
+          tamano_total_palabras: current + intro.palabras_count,
         }).eq('id', productId)
       } catch (e) {
-        console.error('[Agente 5] Editor falló (extras opcionales):', e)
+        console.error('[Agente 5] Intro falló:', e)
       }
       return NextResponse.json({ ok: true, next: 6 })
     }
 
-    // ── AGENTE 6 (OPCIONAL): Vendedor — WhatsApp Scripts ──
+    // ── AGENTE 6: Editor — Conclusión ──
     if (agente === 6) {
       await admin.from('products').update({ current_agent: 6 }).eq('id', productId)
+
+      try {
+        const arquitecto = product.arquitecto_output as ArquitectoOutput
+        const estratega = product.estratega_output as EstrategaOutput
+
+        const conclusion = await runConclusion(
+          arquitecto.bible,
+          arquitecto.secciones,
+          estratega.nombre_producto,
+          estratega.subtitulo
+        )
+
+        await admin.from('producto_contenido').insert({
+          product_id: productId,
+          user_id: user.id,
+          orden: conclusion.orden,
+          tipo_seccion: conclusion.tipo_seccion,
+          titulo: conclusion.titulo,
+          contenido: conclusion.contenido,
+          palabras_count: conclusion.palabras_count,
+        })
+
+        const current = (product.tamano_total_palabras as number) ?? 0
+        await admin.from('products').update({
+          tamano_total_palabras: current + conclusion.palabras_count,
+        }).eq('id', productId)
+      } catch (e) {
+        console.error('[Agente 6] Conclusion falló:', e)
+      }
+      return NextResponse.json({ ok: true, next: 7 })
+    }
+
+    // ── AGENTE 7: Vendedor — WhatsApp Scripts + Facebook Hooks ──
+    if (agente === 7) {
+      await admin.from('products').update({ current_agent: 7 }).eq('id', productId)
 
       try {
         const output = await runVendedor(
@@ -194,10 +238,10 @@ export async function POST(req: Request) {
         await admin.from('products').update({
           vendedor_output: output,
           ganchos_redes: output.ganchos_facebook,
-          current_agent: 6,
+          current_agent: 7,
         }).eq('id', productId)
       } catch (e) {
-        console.error('[Agente 6] Vendedor falló (scripts opcionales):', e)
+        console.error('[Agente 7] Vendedor falló:', e)
       }
       return NextResponse.json({ ok: true, next: null })
     }
@@ -207,7 +251,6 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error en el agente'
     console.error(`[Agente ${agente}] Error:`, message)
-    // Only mark failed if we haven't reached agent 4 yet (no usable content)
     if (agente < 4) {
       await admin.from('products').update({ status: 'failed' }).eq('id', productId)
     }

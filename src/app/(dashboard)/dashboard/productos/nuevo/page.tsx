@@ -13,7 +13,7 @@ const EJEMPLOS = [
 
 type AgentState = 'waiting' | 'running' | 'done'
 
-const TOTAL_AGENTS = 6
+const TOTAL_AGENTS = 7
 
 async function runAgente(productId: string, agente: number): Promise<{ ok: boolean; next: number | null }> {
   const res = await fetch('/api/productos/agente', {
@@ -96,7 +96,7 @@ export default function NuevoProductoPage() {
           <div className="text-4xl mb-3">🤖</div>
           <h1 className="text-2xl font-bold text-white mb-2">Generando tu producto</h1>
           <p className="text-slate-400 text-sm">
-            6 agentes de IA trabajan en tu idea. Esto toma entre 3 y 5 minutos.
+            7 agentes de IA trabajan en tu idea. Esto toma entre 3 y 5 minutos.
           </p>
         </div>
 

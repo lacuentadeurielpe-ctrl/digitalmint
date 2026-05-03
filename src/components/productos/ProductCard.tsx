@@ -20,7 +20,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   failed:     { label: 'Error',     cls: 'bg-red-500/20 text-red-300' },
 }
 
-const AGENT_LABELS = ['Pendiente', 'Investigando', 'Estrategia', 'Arquitecto', 'Escritores', 'Editor', 'Vendedor']
+const AGENT_LABELS = ['Pendiente', 'Investigando', 'Estrategia', 'Arquitecto', 'Escritores', 'Intro', 'Conclusión', 'Vendedor']
 
 export default function ProductCard(props: ProductCardProps) {
   const { id, nombre_producto, subtitulo, idea_original, status, precio_sugerido, created_at, current_agent } = props
@@ -54,12 +54,12 @@ export default function ProductCard(props: ProductCardProps) {
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span>{AGENT_LABELS[current_agent] ?? 'Procesando'}</span>
-            <span>{current_agent}/6</span>
+            <span>{current_agent}/7</span>
           </div>
           <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-purple-500 rounded-full transition-all duration-500"
-              style={{ width: `${(current_agent / 6) * 100}%` }}
+              style={{ width: `${(current_agent / 7) * 100}%` }}
             />
           </div>
         </div>
