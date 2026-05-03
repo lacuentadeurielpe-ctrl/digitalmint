@@ -139,7 +139,12 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
       </div>
 
       {/* Exportación */}
-      <ExportButtons productId={p.id} isComplete={p.status === 'complete'} />
+      <ExportButtons
+        productId={p.id}
+        isComplete={p.status === 'complete'}
+        nombreProducto={p.nombre_producto ?? undefined}
+        subtitulo={p.subtitulo}
+      />
 
       {/* Transformación */}
       <Section title="🔄 Transformación prometida">

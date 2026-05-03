@@ -7,69 +7,189 @@ import {
 } from '@react-pdf/renderer'
 import type { AvatarCliente, EstrategiaPrecio } from '@/lib/supabase/types'
 
-const S = StyleSheet.create({
-  page: { backgroundColor: '#0f0f1a', padding: 0, fontFamily: 'Helvetica' },
-  pagePadded: { backgroundColor: '#0f0f1a', padding: 44, fontFamily: 'Helvetica' },
-
-  // Cover
-  cover: { flex: 1, backgroundColor: '#0f0f1a', padding: 52, justifyContent: 'space-between' },
-  coverTop: { gap: 10 },
-  brand: { fontSize: 10, color: '#a855f7', letterSpacing: 3 },
-  productName: { fontSize: 34, color: '#ffffff', fontFamily: 'Helvetica-Bold', lineHeight: 1.25, marginTop: 10 },
-  subtitle: { fontSize: 14, color: '#94a3b8', marginTop: 14, lineHeight: 1.5 },
-  coverBottom: { gap: 14 },
-  pill: { backgroundColor: '#1e1b4b', borderRadius: 20, paddingVertical: 7, paddingHorizontal: 16, alignSelf: 'flex-start' },
-  pillText: { color: '#a5b4fc', fontSize: 11 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  priceAnchor: { fontSize: 16, color: '#475569', textDecoration: 'line-through' },
-  pricePrimary: { fontSize: 28, color: '#4ade80', fontFamily: 'Helvetica-Bold' },
-  wordsBadge: { fontSize: 11, color: '#64748b' },
-  divider: { height: 1, backgroundColor: '#1e293b', marginVertical: 20 },
-
-  // Typography
-  sectionLabel: { fontSize: 9, color: '#a855f7', letterSpacing: 2, marginBottom: 14 },
-  h2: { fontSize: 20, color: '#ffffff', fontFamily: 'Helvetica-Bold', marginBottom: 10, lineHeight: 1.3 },
-  h3: { fontSize: 14, color: '#e2e8f0', fontFamily: 'Helvetica-Bold', marginBottom: 6, marginTop: 12 },
-  body: { fontSize: 11, color: '#94a3b8', lineHeight: 1.7 },
-  label: { fontSize: 9, color: '#64748b', letterSpacing: 1, marginBottom: 3 },
-  value: { fontSize: 12, color: '#cbd5e1', marginBottom: 12 },
-
-  // Cards
-  card: { backgroundColor: '#1e293b', borderRadius: 8, padding: 16, marginBottom: 12 },
-  cardTitle: { fontSize: 13, color: '#ffffff', fontFamily: 'Helvetica-Bold', marginBottom: 4 },
-  cardSub: { fontSize: 10, color: '#64748b', marginBottom: 6 },
-  cardBody: { fontSize: 10, color: '#94a3b8', lineHeight: 1.5 },
-  badge: { backgroundColor: '#fef08a20', borderRadius: 4, paddingVertical: 2, paddingHorizontal: 6, alignSelf: 'flex-start', marginTop: 6 },
-  badgeText: { fontSize: 9, color: '#fde047' },
-
-  // Before/After
+// ── Layout-only styles (no colors here) ──────────────────────────────────────
+const L = StyleSheet.create({
+  page:           { padding: 0, fontFamily: 'Helvetica' },
+  pagePadded:     { padding: 44, fontFamily: 'Helvetica' },
+  cover:          { flex: 1, padding: 52, justifyContent: 'space-between' },
+  coverTop:       { gap: 10 },
+  coverBottom:    { gap: 14 },
+  pill:           { borderRadius: 20, paddingVertical: 7, paddingHorizontal: 16, alignSelf: 'flex-start' },
+  priceRow:       { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  divider:        { height: 1, marginVertical: 20 },
   beforeAfterRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  beforeCard: { flex: 1, backgroundColor: '#450a0a', borderRadius: 8, padding: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
-  afterCard: { flex: 1, backgroundColor: '#052e16', borderRadius: 8, padding: 14, borderLeftWidth: 3, borderLeftColor: '#22c55e' },
-  baLabel: { fontSize: 9, letterSpacing: 2, marginBottom: 6 },
-  baText: { fontSize: 11, color: '#e2e8f0', lineHeight: 1.5 },
-
-  // Bullet
-  bullet: { flexDirection: 'row', gap: 6, marginBottom: 5 },
-  bulletDot: { fontSize: 11, color: '#a855f7', marginTop: 1 },
-  bulletText: { fontSize: 11, color: '#94a3b8', flex: 1, lineHeight: 1.4 },
-
-  // Quote
-  quote: { borderLeftWidth: 3, borderLeftColor: '#a855f7', paddingLeft: 14, marginVertical: 14 },
-  quoteText: { fontSize: 12, color: '#e2e8f0', fontStyle: 'italic', lineHeight: 1.6 },
-  quoteAuthor: { fontSize: 10, color: '#64748b', marginTop: 4 },
-
-  // Content section
-  contentBox: { backgroundColor: '#111827', borderRadius: 8, padding: 18, marginBottom: 14 },
-  contentTitle: { fontSize: 15, color: '#c084fc', fontFamily: 'Helvetica-Bold', marginBottom: 8 },
-  contentText: { fontSize: 10, color: '#9ca3af', lineHeight: 1.7 },
-
-  // Footer
-  footer: { position: 'absolute', bottom: 24, left: 44, right: 44, flexDirection: 'row', justifyContent: 'space-between' },
-  footerText: { fontSize: 9, color: '#334155' },
-  pageNumber: { fontSize: 9, color: '#475569' },
+  beforeCard:     { flex: 1, borderRadius: 8, padding: 14, borderLeftWidth: 3 },
+  afterCard:      { flex: 1, borderRadius: 8, padding: 14, borderLeftWidth: 3 },
+  card:           { borderRadius: 8, padding: 16, marginBottom: 12 },
+  contentBox:     { borderRadius: 8, padding: 18, marginBottom: 14 },
+  badge:          { borderRadius: 4, paddingVertical: 2, paddingHorizontal: 6, alignSelf: 'flex-start', marginTop: 6 },
+  quote:          { borderLeftWidth: 3, paddingLeft: 14, marginVertical: 14 },
+  bullet:         { flexDirection: 'row', gap: 6, marginBottom: 5 },
+  twoCols:        { flexDirection: 'row', gap: 20, marginTop: 8 },
+  col:            { flex: 1 },
+  footer:         { position: 'absolute', bottom: 24, left: 44, right: 44, flexDirection: 'row', justifyContent: 'space-between' },
 })
 
+// ── Typography scale (layout, no colors) ─────────────────────────────────────
+const T = StyleSheet.create({
+  brand:        { fontSize: 10, letterSpacing: 3 },
+  brandSub:     { fontSize: 10, letterSpacing: 3, marginTop: 2 },
+  productName:  { fontSize: 34, fontFamily: 'Helvetica-Bold', lineHeight: 1.25, marginTop: 10 },
+  subtitle:     { fontSize: 14, marginTop: 14, lineHeight: 1.5 },
+  priceAnchor:  { fontSize: 16, textDecoration: 'line-through' },
+  pricePrimary: { fontSize: 28, fontFamily: 'Helvetica-Bold' },
+  pillText:     { fontSize: 11 },
+  wordsBadge:   { fontSize: 11 },
+  sectionLabel: { fontSize: 9, letterSpacing: 2, marginBottom: 14 },
+  h2:           { fontSize: 20, fontFamily: 'Helvetica-Bold', marginBottom: 10, lineHeight: 1.3 },
+  h3:           { fontSize: 14, fontFamily: 'Helvetica-Bold', marginBottom: 6, marginTop: 12 },
+  body:         { fontSize: 11, lineHeight: 1.7 },
+  label:        { fontSize: 9, letterSpacing: 1, marginBottom: 3 },
+  value:        { fontSize: 12, marginBottom: 12 },
+  cardTitle:    { fontSize: 13, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  cardSub:      { fontSize: 10, marginBottom: 6 },
+  cardBody:     { fontSize: 10, lineHeight: 1.5 },
+  badgeText:    { fontSize: 9 },
+  baLabel:      { fontSize: 9, letterSpacing: 2, marginBottom: 6 },
+  baText:       { fontSize: 11, lineHeight: 1.5 },
+  quoteText:    { fontSize: 12, fontStyle: 'italic', lineHeight: 1.6 },
+  quoteAuthor:  { fontSize: 10, marginTop: 4 },
+  contentTitle: { fontSize: 15, fontFamily: 'Helvetica-Bold', marginBottom: 8 },
+  contentText:  { fontSize: 10, lineHeight: 1.7 },
+  bulletDot:    { fontSize: 11, marginTop: 1 },
+  bulletText:   { fontSize: 11, flex: 1, lineHeight: 1.4 },
+  footerText:   { fontSize: 9 },
+  pageNumber:   { fontSize: 9 },
+})
+
+// ── Themes ────────────────────────────────────────────────────────────────────
+export type PdfTheme = 'dark' | 'light' | 'purple'
+
+interface ThemeColors {
+  pageBg: string
+  coverBg: string
+  cardBg: string
+  contentBg: string
+  pillBg: string
+  dividerColor: string
+  accent: string
+  accentMuted: string
+  textPrimary: string
+  textSecondary: string
+  textMuted: string
+  textDim: string
+  textFooter: string
+  textPageNum: string
+  price: string
+  pillText: string
+  sectionLabel: string
+  contentTitle: string
+  baLabelBefore: string
+  baLabelAfter: string
+  beforeBg: string
+  afterBg: string
+  beforeBorder: string
+  afterBorder: string
+  badgeBg: string
+  badgeText: string
+  priceAnchorColor: string
+  cardBorder: string
+}
+
+const THEMES: Record<PdfTheme, ThemeColors> = {
+  dark: {
+    pageBg: '#0f0f1a',
+    coverBg: '#0f0f1a',
+    cardBg: '#1e293b',
+    contentBg: '#111827',
+    pillBg: '#1e1b4b',
+    dividerColor: '#1e293b',
+    accent: '#a855f7',
+    accentMuted: '#a5b4fc',
+    textPrimary: '#ffffff',
+    textSecondary: '#e2e8f0',
+    textMuted: '#94a3b8',
+    textDim: '#64748b',
+    textFooter: '#334155',
+    textPageNum: '#475569',
+    price: '#4ade80',
+    pillText: '#a5b4fc',
+    sectionLabel: '#a855f7',
+    contentTitle: '#c084fc',
+    baLabelBefore: '#fca5a5',
+    baLabelAfter: '#86efac',
+    beforeBg: '#450a0a',
+    afterBg: '#052e16',
+    beforeBorder: '#ef4444',
+    afterBorder: '#22c55e',
+    badgeBg: 'rgba(254,240,138,0.12)',
+    badgeText: '#fde047',
+    priceAnchorColor: '#475569',
+    cardBorder: '#1e293b',
+  },
+  light: {
+    pageBg: '#ffffff',
+    coverBg: '#f8fafc',
+    cardBg: '#f1f5f9',
+    contentBg: '#f8fafc',
+    pillBg: '#ede9fe',
+    dividerColor: '#e2e8f0',
+    accent: '#7c3aed',
+    accentMuted: '#8b5cf6',
+    textPrimary: '#0f172a',
+    textSecondary: '#1e293b',
+    textMuted: '#475569',
+    textDim: '#94a3b8',
+    textFooter: '#94a3b8',
+    textPageNum: '#64748b',
+    price: '#15803d',
+    pillText: '#6d28d9',
+    sectionLabel: '#6d28d9',
+    contentTitle: '#7c3aed',
+    baLabelBefore: '#dc2626',
+    baLabelAfter: '#16a34a',
+    beforeBg: '#fef2f2',
+    afterBg: '#f0fdf4',
+    beforeBorder: '#ef4444',
+    afterBorder: '#22c55e',
+    badgeBg: 'rgba(254,240,138,0.3)',
+    badgeText: '#854d0e',
+    priceAnchorColor: '#94a3b8',
+    cardBorder: '#e2e8f0',
+  },
+  purple: {
+    pageBg: '#1e1b4b',
+    coverBg: '#0f0c2e',
+    cardBg: '#312e81',
+    contentBg: '#16144a',
+    pillBg: '#312e81',
+    dividerColor: '#3730a3',
+    accent: '#e879f9',
+    accentMuted: '#c084fc',
+    textPrimary: '#e0e7ff',
+    textSecondary: '#c7d2fe',
+    textMuted: '#a5b4fc',
+    textDim: '#818cf8',
+    textFooter: '#4f46e5',
+    textPageNum: '#6366f1',
+    price: '#4ade80',
+    pillText: '#c7d2fe',
+    sectionLabel: '#e879f9',
+    contentTitle: '#f0abfc',
+    baLabelBefore: '#fca5a5',
+    baLabelAfter: '#86efac',
+    beforeBg: '#450a0a',
+    afterBg: '#052e16',
+    beforeBorder: '#ef4444',
+    afterBorder: '#22c55e',
+    badgeBg: 'rgba(254,240,138,0.1)',
+    badgeText: '#fef08a',
+    priceAnchorColor: '#6366f1',
+    cardBorder: 'transparent',
+  },
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 export interface SeccionContenido {
   orden: number
   tipo_seccion: string
@@ -94,24 +214,14 @@ interface Props {
     guion_apertura_whatsapp?: string
     guion_cierre?: string
   } | null
-}
-
-function Bullet({ text }: { text: string }) {
-  return (
-    <View style={S.bullet}>
-      <Text style={S.bulletDot}>›</Text>
-      <Text style={S.bulletText}>{text}</Text>
-    </View>
-  )
-}
-
-function PageFooter({ nombre }: { nombre: string }) {
-  return (
-    <View style={S.footer} fixed>
-      <Text style={S.footerText}>DigitalMint · {nombre}</Text>
-      <Text style={S.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-    </View>
-  )
+  // Personalization
+  footerText?: string
+  theme?: PdfTheme
+  showAvatar?: boolean
+  showScripts?: boolean
+  showGanchos?: boolean
+  customTitle?: string
+  customSubtitle?: string
 }
 
 function cleanMarkdown(text: string): string {
@@ -138,10 +248,20 @@ export function ProductoPDF({
   secciones,
   ganchos,
   vendedor_output,
+  footerText,
+  theme = 'dark',
+  showAvatar = true,
+  showScripts = true,
+  showGanchos = true,
+  customTitle,
+  customSubtitle,
 }: Props) {
+  const t = THEMES[theme]
+  const displayTitle = customTitle || nombre_producto
+  const displaySubtitle = customSubtitle !== undefined ? customSubtitle : subtitulo
+  const footer = footerText || `DigitalMint · ${displayTitle}`
   const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
 
-  // Sort and group sections
   const tocSection = secciones.find(s => s.tipo_seccion === 'toc')
   const introSection = secciones.find(s => s.tipo_seccion === 'intro')
   const conclusionSection = secciones.find(s => s.tipo_seccion === 'conclusion')
@@ -155,33 +275,56 @@ export function ProductoPDF({
     ...(conclusionSection ? [conclusionSection] : []),
   ]
 
+  const PageFooter = () => (
+    <View style={L.footer} fixed>
+      <Text style={[T.footerText, { color: t.textFooter }]}>{footer}</Text>
+      <Text
+        style={[T.pageNumber, { color: t.textPageNum }]}
+        render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+      />
+    </View>
+  )
+
+  const Bullet = ({ text }: { text: string }) => (
+    <View style={L.bullet}>
+      <Text style={[T.bulletDot, { color: t.accent }]}>›</Text>
+      <Text style={[T.bulletText, { color: t.textMuted }]}>{text}</Text>
+    </View>
+  )
+
   return (
-    <Document title={nombre_producto} author="DigitalMint" subject="Producto Digital">
+    <Document title={displayTitle} author="DigitalMint" subject="Producto Digital">
 
       {/* ── PORTADA ── */}
-      <Page size="A4" style={S.page}>
-        <View style={S.cover}>
-          <View style={S.coverTop}>
-            <Text style={S.brand}>DIGITALMINT · PRODUCTO DIGITAL</Text>
-            {tipo_producto && <Text style={[S.brand, { color: '#64748b', marginTop: 2 }]}>{tipo_producto.toUpperCase()}</Text>}
-            <Text style={S.productName}>{nombre_producto}</Text>
-            {subtitulo && <Text style={S.subtitle}>{subtitulo}</Text>}
+      <Page size="A4" style={[L.page, { backgroundColor: t.coverBg }]}>
+        <View style={L.cover}>
+          <View style={L.coverTop}>
+            <Text style={[T.brand, { color: t.accent }]}>DIGITALMINT · PRODUCTO DIGITAL</Text>
+            {tipo_producto && (
+              <Text style={[T.brandSub, { color: t.textDim }]}>{tipo_producto.toUpperCase()}</Text>
+            )}
+            <Text style={[T.productName, { color: t.textPrimary }]}>{displayTitle}</Text>
+            {displaySubtitle && (
+              <Text style={[T.subtitle, { color: t.textMuted }]}>{displaySubtitle}</Text>
+            )}
           </View>
-          <View style={S.coverBottom}>
-            <View style={S.divider} />
+          <View style={L.coverBottom}>
+            <View style={[L.divider, { backgroundColor: t.dividerColor }]} />
             {precio_sugerido && (
-              <View style={S.priceRow}>
+              <View style={L.priceRow}>
                 {precio?.precio_anchor && (
-                  <Text style={S.priceAnchor}>{fmt(precio.precio_anchor)}</Text>
+                  <Text style={[T.priceAnchor, { color: t.priceAnchorColor }]}>{fmt(precio.precio_anchor)}</Text>
                 )}
-                <Text style={S.pricePrimary}>{fmt(precio_sugerido)}</Text>
+                <Text style={[T.pricePrimary, { color: t.price }]}>{fmt(precio_sugerido)}</Text>
               </View>
             )}
             {tamano_total_palabras && (
-              <Text style={S.wordsBadge}>{tamano_total_palabras.toLocaleString()} palabras de contenido real</Text>
+              <Text style={[T.wordsBadge, { color: t.textDim }]}>
+                {tamano_total_palabras.toLocaleString()} palabras de contenido real
+              </Text>
             )}
-            <View style={S.pill}>
-              <Text style={S.pillText}>Generado con DigitalMint · digitalmint-orcin.vercel.app</Text>
+            <View style={[L.pill, { backgroundColor: t.pillBg }]}>
+              <Text style={[T.pillText, { color: t.pillText }]}>Generado con DigitalMint</Text>
             </View>
           </View>
         </View>
@@ -189,121 +332,128 @@ export function ProductoPDF({
 
       {/* ── TABLA DE CONTENIDOS ── */}
       {tocSection && (
-        <Page size="A4" style={S.pagePadded}>
-          <Text style={S.sectionLabel}>ÍNDICE</Text>
-          <Text style={[S.body, { lineHeight: 1.9 }]}>
+        <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+          <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>ÍNDICE</Text>
+          <Text style={[T.body, { color: t.textMuted, lineHeight: 1.9 }]}>
             {cleanMarkdown(tocSection.contenido)}
           </Text>
-          <PageFooter nombre={nombre_producto} />
+          <PageFooter />
         </Page>
       )}
 
       {/* ── TRANSFORMACIÓN + AVATAR ── */}
-      <Page size="A4" style={S.pagePadded}>
-        <Text style={S.sectionLabel}>TRANSFORMACIÓN PROMETIDA</Text>
-        <View style={S.beforeAfterRow}>
+      <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+        <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>TRANSFORMACIÓN PROMETIDA</Text>
+        <View style={L.beforeAfterRow}>
           {promesa_before && (
-            <View style={S.beforeCard}>
-              <Text style={[S.baLabel, { color: '#fca5a5' }]}>ANTES</Text>
-              <Text style={S.baText}>{promesa_before}</Text>
+            <View style={[L.beforeCard, { backgroundColor: t.beforeBg, borderLeftColor: t.beforeBorder }]}>
+              <Text style={[T.baLabel, { color: t.baLabelBefore }]}>ANTES</Text>
+              <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_before}</Text>
             </View>
           )}
           {promesa_after && (
-            <View style={S.afterCard}>
-              <Text style={[S.baLabel, { color: '#86efac' }]}>DESPUÉS</Text>
-              <Text style={S.baText}>{promesa_after}</Text>
+            <View style={[L.afterCard, { backgroundColor: t.afterBg, borderLeftColor: t.afterBorder }]}>
+              <Text style={[T.baLabel, { color: t.baLabelAfter }]}>DESPUÉS</Text>
+              <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_after}</Text>
             </View>
           )}
         </View>
 
-        {avatar && (
+        {showAvatar && avatar && (
           <>
-            <View style={S.divider} />
-            <Text style={S.sectionLabel}>AVATAR DEL CLIENTE IDEAL</Text>
-            <Text style={S.label}>Perfil</Text>
-            <Text style={S.value}>{avatar.nombre_ficticio} · {avatar.edad} · {avatar.ocupacion}</Text>
+            <View style={[L.divider, { backgroundColor: t.dividerColor }]} />
+            <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>AVATAR DEL CLIENTE IDEAL</Text>
+            <Text style={[T.label, { color: t.textDim }]}>Perfil</Text>
+            <Text style={[T.value, { color: t.textSecondary }]}>
+              {avatar.nombre_ficticio} · {avatar.edad} · {avatar.ocupacion}
+            </Text>
             {avatar.cita_directa && (
-              <View style={S.quote}>
-                <Text style={S.quoteText}>"{avatar.cita_directa}"</Text>
-                <Text style={S.quoteAuthor}>— {avatar.nombre_ficticio}</Text>
+              <View style={[L.quote, { borderLeftColor: t.accent }]}>
+                <Text style={[T.quoteText, { color: t.textSecondary }]}>"{avatar.cita_directa}"</Text>
+                <Text style={[T.quoteAuthor, { color: t.textDim }]}>— {avatar.nombre_ficticio}</Text>
               </View>
             )}
-            <View style={{ flexDirection: 'row', gap: 20, marginTop: 8 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={S.label}>Dolores</Text>
+            <View style={L.twoCols}>
+              <View style={L.col}>
+                <Text style={[T.label, { color: t.textDim }]}>Dolores</Text>
                 {avatar.dolores?.map((d, i) => <Bullet key={i} text={d} />)}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={S.label}>Deseos</Text>
+              <View style={L.col}>
+                <Text style={[T.label, { color: t.textDim }]}>Deseos</Text>
                 {avatar.deseos?.map((d, i) => <Bullet key={i} text={d} />)}
               </View>
             </View>
           </>
         )}
-        <PageFooter nombre={nombre_producto} />
+        <PageFooter />
       </Page>
 
-      {/* ── CONTENIDO PRINCIPAL (secciones) ── */}
+      {/* ── CONTENIDO PRINCIPAL ── */}
       {orderedSections.map((sec) => {
         const cleanedContent = cleanMarkdown(sec.contenido)
         const preview = cleanedContent.slice(0, 3000)
         const hasMore = cleanedContent.length > 3000
 
         return (
-          <Page key={sec.orden} size="A4" style={S.pagePadded}>
-            <Text style={S.sectionLabel}>
+          <Page key={sec.orden} size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+            <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>
               {sec.tipo_seccion === 'intro' ? 'INTRODUCCIÓN' :
                sec.tipo_seccion === 'conclusion' ? 'CONCLUSIÓN' :
                sec.tipo_seccion === 'bonus' ? `BONUS · ${sec.orden}` :
                `SECCIÓN ${sec.orden}`}
             </Text>
-            <Text style={S.h2}>{sec.titulo}</Text>
-            <View style={S.contentBox}>
-              <Text style={S.contentText}>{preview}</Text>
+            <Text style={[T.h2, { color: t.textPrimary }]}>{sec.titulo}</Text>
+            <View style={[L.contentBox, { backgroundColor: t.contentBg }]}>
+              <Text style={[T.contentTitle, { color: t.contentTitle }]}>{sec.titulo}</Text>
+              <Text style={[T.contentText, { color: t.textMuted }]}>{preview}</Text>
               {hasMore && (
-                <Text style={[S.contentText, { color: '#475569', marginTop: 8, fontStyle: 'italic' }]}>
+                <Text style={[T.contentText, { color: t.textDim, marginTop: 8, fontStyle: 'italic' }]}>
                   [...continúa · {sec.palabras_count?.toLocaleString()} palabras en total]
                 </Text>
               )}
             </View>
-            <PageFooter nombre={nombre_producto} />
+            <PageFooter />
           </Page>
         )
       })}
 
       {/* ── SCRIPTS WHATSAPP ── */}
-      {vendedor_output && (
-        <Page size="A4" style={S.pagePadded}>
-          <Text style={S.sectionLabel}>SCRIPTS DE VENTAS · WHATSAPP</Text>
+      {showScripts && vendedor_output && (
+        <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+          <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>SCRIPTS DE VENTAS · WHATSAPP</Text>
           {vendedor_output.guion_apertura_whatsapp && (
-            <View style={[S.card, { marginBottom: 16 }]}>
-              <Text style={S.cardSub}>APERTURA — primer mensaje</Text>
-              <Text style={S.cardBody}>{vendedor_output.guion_apertura_whatsapp as string}</Text>
+            <View style={[L.card, { backgroundColor: t.cardBg, marginBottom: 16 }]}>
+              <Text style={[T.cardSub, { color: t.textDim }]}>APERTURA — primer mensaje</Text>
+              <Text style={[T.cardBody, { color: t.textMuted }]}>
+                {vendedor_output.guion_apertura_whatsapp as string}
+              </Text>
             </View>
           )}
           {vendedor_output.guion_cierre && (
-            <View style={S.card}>
-              <Text style={S.cardSub}>CIERRE — cuando muestra interés</Text>
-              <Text style={S.cardBody}>{vendedor_output.guion_cierre as string}</Text>
+            <View style={[L.card, { backgroundColor: t.cardBg }]}>
+              <Text style={[T.cardSub, { color: t.textDim }]}>CIERRE — cuando muestra interés</Text>
+              <Text style={[T.cardBody, { color: t.textMuted }]}>
+                {vendedor_output.guion_cierre as string}
+              </Text>
             </View>
           )}
-          <PageFooter nombre={nombre_producto} />
+          <PageFooter />
         </Page>
       )}
 
       {/* ── GANCHOS FACEBOOK ADS ── */}
-      {ganchos && ganchos.length > 0 && (
-        <Page size="A4" style={S.pagePadded}>
-          <Text style={S.sectionLabel}>GANCHOS · FACEBOOK ADS</Text>
+      {showGanchos && ganchos && ganchos.length > 0 && (
+        <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+          <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>GANCHOS · FACEBOOK ADS</Text>
           {ganchos.map((gancho, i) => (
-            <View key={i} style={[S.card, { borderLeftWidth: 3, borderLeftColor: '#818cf8' }]}>
-              <Text style={[S.cardSub, { color: '#818cf8' }]}>
+            <View key={i} style={[L.card, { backgroundColor: t.cardBg, borderLeftWidth: 3, borderLeftColor: t.accentMuted, marginBottom: 12 }]}>
+              <Text style={[T.cardSub, { color: t.accentMuted }]}>
                 {['PAS · Problema→Agitación→Solución', 'BAB · Antes→Después→Puente', 'Hook contraintuitivo'][i]}
               </Text>
-              <Text style={S.cardBody}>{gancho}</Text>
+              <Text style={[T.cardBody, { color: t.textMuted }]}>{gancho}</Text>
             </View>
           ))}
-          <PageFooter nombre={nombre_producto} />
+          <PageFooter />
         </Page>
       )}
 
