@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import BotConfigClient from '@/components/configuracion/BotConfigClient'
 import WebhookConfigClient from '@/components/configuracion/WebhookConfigClient'
+import PagosConfigClient from '@/components/configuracion/PagosConfigClient'
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient()
@@ -58,6 +59,22 @@ export default async function ConfiguracionPage() {
             userId={user!.id}
           />
         </div>
+      </Section>
+
+      {/* Métodos de pago del bot */}
+      <Section title="💳 Métodos de pago del bot">
+        <p className="text-sm text-slate-400 mb-4">
+          Cuando el cliente quiera pagar, el bot enviará automáticamente estos datos.
+          Configura los métodos que uses.
+        </p>
+        <PagosConfigClient
+          userId={user!.id}
+          yapeNumero={s?.yape_numero ?? ''}
+          plinNumero={s?.plin_numero ?? ''}
+          bcpCuenta={s?.bcp_cuenta ?? ''}
+          bcpTitular={s?.bcp_titular ?? ''}
+          botNombre={s?.bot_nombre ?? ''}
+        />
       </Section>
 
       {/* Webhooks de exportación */}

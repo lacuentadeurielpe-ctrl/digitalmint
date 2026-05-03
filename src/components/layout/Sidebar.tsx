@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '⚡' },
   { href: '/dashboard/productos', label: 'Mis Productos', icon: '📦' },
   { href: '/dashboard/tendencias', label: 'Radar de Ventas', icon: '📡' },
+  { href: '/dashboard/inventario', label: 'Inventario Bot', icon: '🛒' },
   { href: '/dashboard/bot', label: 'Bot WhatsApp', icon: '💬' },
   { href: '/dashboard/configuracion', label: 'Configuración', icon: '⚙️' },
 ]
