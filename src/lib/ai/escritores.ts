@@ -58,7 +58,7 @@ ${seccion.puntos_clave.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
 Escribe el contenido completo. Desarrolla cada punto con profundidad, ejemplos reales y ejercicios practicos. Minimo ${seccion.palabras_objetivo} palabras.`
 
-  const contenido = await deepseekText(WRITER_SYSTEM, userContent, 5000)
+  const contenido = await deepseekText(WRITER_SYSTEM, userContent, 3000)
 
   // If content is too short (LLM truncated), retry once with a shorter target
   if (countWords(contenido) < 500 && attempt === 0) {
