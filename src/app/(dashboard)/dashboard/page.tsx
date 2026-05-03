@@ -1,11 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatUSD, formatDate } from '@/lib/utils'
+import type { ProductStatus } from '@/lib/supabase/types'
+
+type ProductRow = {
+  id: string
+  nombre_producto: string | null
+  status: ProductStatus
+  precio_sugerido: number | null
+  created_at: string
+}
+
+type AnalyticsRow = {
+  earnings_potential: number | null
+  exports: number
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: products }, { data: analytics }] = await Promise.all([
+  const [{ data: productsRaw }, { data: analyticsRaw }] = await Promise.all([
     supabase
       .from('products')
       .select('id, nombre_producto, status, precio_sugerido, created_at')
@@ -18,10 +32,13 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id),
   ])
 
-  const totalProducts = products?.length ?? 0
-  const completeProducts = products?.filter(p => p.status === 'complete').length ?? 0
-  const totalEarningsPotential = analytics?.reduce((sum, a) => sum + (a.earnings_potential ?? 0), 0) ?? 0
-  const totalExports = analytics?.reduce((sum, a) => sum + a.exports, 0) ?? 0
+  const products = (productsRaw ?? []) as ProductRow[]
+  const analytics = (analyticsRaw ?? []) as AnalyticsRow[]
+
+  const totalProducts = products.length
+  const completeProducts = products.filter(p => p.status === 'complete').length
+  const totalEarningsPotential = analytics.reduce((sum, a) => sum + (a.earnings_potential ?? 0), 0)
+  const totalExports = analytics.reduce((sum, a) => sum + a.exports, 0)
 
   return (
     <div className="p-8">
