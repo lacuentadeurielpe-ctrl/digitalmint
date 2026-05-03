@@ -111,7 +111,7 @@ function buildUserPrompt(categoria: string): string {
     ? `CATEGORÍA EXCLUSIVA: Todas las ideas deben ser sobre "${categoria}". Encuentra los ángulos más vendibles y específicos dentro de esa categoría.\n\n`
     : `Cubre variedad de categorías: ingresos online, marketing digital, productividad, salud/bienestar, finanzas personales, habilidades tech sin programar, madres emprendedoras, pequeños negocios.\n\n`
 
-  return `${focusPart}Analiza el mercado hispanohablante en Mayo 2026 y genera 12 ideas de productos digitales ordenadas por sellability.
+  return `${focusPart}Analiza el mercado hispanohablante en Mayo 2026 y genera 8 ideas de productos digitales ordenadas por sellability.
 
 Para cada idea usa EXACTAMENTE este formato:
 

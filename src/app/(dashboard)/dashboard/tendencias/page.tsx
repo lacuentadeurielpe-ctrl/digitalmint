@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { TendenciasOutput, IdeaTendencia } from '@/lib/ai/tendencias'
 
 const CATEGORIAS = [
@@ -141,11 +141,10 @@ const LOADING_STEPS = [
 function LoadingState() {
   const [step, setStep] = useState(0)
 
-  // cycle through steps
-  if (typeof window !== 'undefined') {
-    // Advance step every ~3s to fill the ~18s wait
-    setTimeout(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 3000)
-  }
+  useEffect(() => {
+    const id = setInterval(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 4000)
+    return () => clearInterval(id)
+  }, [])
 
   return (
     <div className="flex flex-col items-center justify-center py-24 space-y-6">
@@ -280,7 +279,7 @@ export default function TendenciasPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-white">
-                {output.ideas.length} ideas rankeadas por vendibilidad
+                {output.ideas.length} idea{output.ideas.length !== 1 ? 's' : ''} rankeadas por vendibilidad
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {output.categoria !== 'todos' ? `Categoría: ${output.categoria} · ` : ''}

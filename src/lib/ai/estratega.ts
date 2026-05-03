@@ -110,9 +110,9 @@ NUNCA uses titulos genericos como "[Tema] para Principiantes" o "La Guia Complet
 
 Devuelve EXACTAMENTE en este formato (sin texto extra, solo las etiquetas):
 
-[NOMBRE]Titulo Principal: el mas vendible, usa la formula que mejor encaja con el dolor[/NOMBRE]
-[NOMBRE_ALT_1]Segunda opcion: misma promesa, formula diferente (p.ej. "Cómo X sin Y")[/NOMBRE_ALT_1]
-[NOMBRE_ALT_2]Tercera opcion: angulo diferente, quizas mas emocional o con numero especifico[/NOMBRE_ALT_2]
+[NOMBRE]escribe aqui el titulo mas vendible usando una de las formulas probadas[/NOMBRE]
+[NOMBRE_ALT_1]segunda opcion de titulo, formula diferente (p.ej. Cómo X sin Y)[/NOMBRE_ALT_1]
+[NOMBRE_ALT_2]tercera opcion, angulo diferente, quizas mas emocional o con numero especifico[/NOMBRE_ALT_2]
 [JUSTIFICACION_NOMBRE]por que el titulo principal activa la compra — que mecanismo psicologico usa[/JUSTIFICACION_NOMBRE]
 [SUBTITULO]subtitulo que completa la promesa y especifica la audiencia y el resultado, max 15 palabras[/SUBTITULO]
 [POSICIONAMIENTO]que oceano azul ocupa este producto vs competencia[/POSICIONAMIENTO]
@@ -136,9 +136,12 @@ Devuelve EXACTAMENTE en este formato (sin texto extra, solo las etiquetas):
 
   const raw = await deepseekText(SYSTEM_PROMPT, userContent, 2500)
 
-  const nombre = extract(raw, 'NOMBRE') || `Cómo resolver ${idea.slice(0, 40)} paso a paso`
-  const alt1   = extract(raw, 'NOMBRE_ALT_1')
-  const alt2   = extract(raw, 'NOMBRE_ALT_2')
+  const stripPrefix = (s: string) =>
+    s.replace(/^t[íi]tulo\s+(principal|alternativo|\d+)\s*:\s*/i, '').trim()
+
+  const nombre = stripPrefix(extract(raw, 'NOMBRE') || `Cómo resolver ${idea.slice(0, 40)} paso a paso`)
+  const alt1   = stripPrefix(extract(raw, 'NOMBRE_ALT_1'))
+  const alt2   = stripPrefix(extract(raw, 'NOMBRE_ALT_2'))
   const tipo   = extract(raw, 'TIPO_PRODUCTO') || 'curso online'
 
   return {

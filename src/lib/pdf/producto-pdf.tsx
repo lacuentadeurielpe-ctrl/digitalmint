@@ -227,13 +227,46 @@ interface Props {
 
 function cleanMarkdown(text: string): string {
   return text
-    .replace(/#{1,6}\s+/g, '')
+    // Strip fenced code blocks entirely
+    .replace(/```[\s\S]*?```/g, '')
+    // Strip horizontal rules (--- *** ___)
+    .replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, '')
+    // Strip markdown table rows
+    .replace(/^\|.*\|[ \t]*$/gm, '')
+    // Strip headers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Strip bold/italic (closed markers)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/\*(.+?)\*/g, '$1')
+    // Strip unclosed ** or * markers
+    .replace(/\*\*/g, '')
+    .replace(/(?<![•\w])\*/g, '')
+    // Strip inline code backticks
     .replace(/`(.+?)`/g, '$1')
-    .replace(/^\s*[-*+]\s+/gm, '• ')
+    .replace(/`/g, '')
+    // Convert list items to bullets
+    .replace(/^\s*[-+]\s+/gm, '• ')
+    // Strip ordered list numbers
     .replace(/^\s*\d+\.\s+/gm, '')
+    // Collapse excess blank lines
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+function removeLeadingTitle(content: string, titulo: string): string {
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^a-záéíóúñüàèìòù0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+  const normTitle = normalize(titulo)
+  const lines = content.split('\n')
+  const firstIdx = lines.findIndex(l => l.trim())
+  if (firstIdx === -1) return content
+  const firstLine = normalize(lines[firstIdx])
+  if (firstLine === normTitle || firstLine.startsWith(normTitle)) {
+    lines.splice(firstIdx, 1)
+    return lines.join('\n').replace(/^\n+/, '').trim()
+  }
+  return content
 }
 
 export function ProductoPDF({
@@ -395,7 +428,7 @@ export function ProductoPDF({
 
       {/* ── CONTENIDO PRINCIPAL ── */}
       {orderedSections.map((sec) => {
-        const cleanedContent = cleanMarkdown(sec.contenido)
+        const cleanedContent = removeLeadingTitle(cleanMarkdown(sec.contenido), sec.titulo)
         const sectionLabel =
           sec.tipo_seccion === 'intro'       ? 'INTRODUCCIÓN' :
           sec.tipo_seccion === 'conclusion'  ? 'CONCLUSIÓN' :
