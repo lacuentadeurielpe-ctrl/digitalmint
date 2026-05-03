@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { deepseekText } from './deepseek'
 import type { InvestigadorOutput } from './investigador'
 import type { EstrategaOutput } from './estratega'
 import type { ArquitectoOutput } from './arquitecto'
@@ -12,71 +12,26 @@ export interface VendedorOutput {
   mensaje_entrega: string
 }
 
-const SYSTEM_PROMPT = `Eres el copywriter de conversion mas efectivo del mundo hispanohablante. Especializas en ventas por WhatsApp — el canal de mayor confianza en Latinoamerica.
+const SYSTEM_PROMPT = `Eres el copywriter de conversion mas efectivo del mundo hispanohablante. Especializas en ventas por WhatsApp.
 
 MARCOS QUE APLICAS:
 - StoryBrand: el cliente es el heroe, el producto es la guia
-- PAS: Problema → Agitacion → Solucion
-- Principios Cialdini: reciprocidad, autoridad, prueba social, escasez, compromiso
-- Conversational selling: lenguaje natural, no corporativo, como un amigo experto
+- PAS: Problema Agitacion Solucion
+- Principios Cialdini: reciprocidad, autoridad, prueba social, escasez
+- Conversational selling: lenguaje natural, como un amigo experto
 
-TU OBJETIVO: crear scripts para un bot de WhatsApp que convierte leads de Facebook Ads en compradores.
+Devuelve UNICAMENTE el formato de etiquetas indicado, sin texto adicional.`
 
-Formato de respuesta OBLIGATORIO — usa exactamente estos delimitadores:
-
-[APERTURA]
-(Primer mensaje del bot cuando llega un lead de Facebook — maximo 3 parrafos cortos, tono amigable, abre con curiosidad o dolor)
-[/APERTURA]
-
-[PRESENTACION]
-(Como presenta el producto — beneficios, transformacion, precio con anclaje — maximo 5 bloques de WhatsApp)
-[/PRESENTACION]
-
-[CIERRE]
-(Script de cierre cuando el lead muestra interes — urgencia etica, garantia, CTA claro)
-[/CIERRE]
-
-[OBJECION_1]
-objecion: [la objecion exacta del avatar]
-respuesta: [respuesta empatica de 2-3 oraciones]
-[/OBJECION_1]
-
-[OBJECION_2]
-objecion: [objecion 2]
-respuesta: [respuesta]
-[/OBJECION_2]
-
-[OBJECION_3]
-objecion: [objecion 3]
-respuesta: [respuesta]
-[/OBJECION_3]
-
-[GANCHO_FB_1]
-(Gancho PAS para anuncio Facebook que hace que la gente escriba al WhatsApp — maximo 150 palabras)
-[/GANCHO_FB_1]
-
-[GANCHO_FB_2]
-(Gancho BAB — Antes/Despues/Puente — para anuncio Facebook)
-[/GANCHO_FB_2]
-
-[GANCHO_FB_3]
-(Gancho contraintuitivo o dato sorprendente para anuncio Facebook)
-[/GANCHO_FB_3]
-
-[ENTREGA]
-(Mensaje de WhatsApp cuando se confirma el pago — celebra, da acceso, premia la decision)
-[/ENTREGA]`
-
-function extractSection(text: string, tag: string): string {
+function extract(raw: string, tag: string): string {
   const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i')
-  const match = text.match(regex)
+  const match = raw.match(regex)
   return match ? match[1].trim() : ''
 }
 
-function extractObjecion(text: string, n: number): { objecion: string; respuesta: string } {
-  const raw = extractSection(text, `OBJECION_${n}`)
-  const objecionMatch = raw.match(/objecion:\s*(.+)/i)
-  const respuestaMatch = raw.match(/respuesta:\s*([\s\S]+)/i)
+function extractObjecion(raw: string, n: number): { objecion: string; respuesta: string } {
+  const block = extract(raw, `OBJECION_${n}`)
+  const objecionMatch = block.match(/objecion:\s*(.+)/i)
+  const respuestaMatch = block.match(/respuesta:\s*([\s\S]+)/i)
   return {
     objecion: objecionMatch?.[1]?.trim() ?? '',
     respuesta: respuestaMatch?.[1]?.trim() ?? '',
@@ -88,19 +43,17 @@ export async function runVendedor(
   estratega: EstrategaOutput,
   arquitecto: ArquitectoOutput
 ): Promise<VendedorOutput> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
   const seccionesLista = arquitecto.secciones
-    .map(s => `- ${s.titulo}${s.es_pareto ? ' ⭐' : ''}`)
+    .map(s => `- ${s.titulo}${s.es_pareto ? ' (seccion principal)' : ''}`)
     .join('\n')
 
   const userContent = `PRODUCTO: ${estratega.nombre_producto}
 SUBTITULO: ${estratega.subtitulo}
 TIPO: ${arquitecto.tipo_producto}
-TOTAL CONTENIDO: ~${arquitecto.total_palabras_estimado.toLocaleString()} palabras de contenido real
+CONTENIDO: ${arquitecto.total_palabras_estimado.toLocaleString()} palabras reales
 
 AVATAR — ${estratega.avatar.nombre_ficticio}, ${estratega.avatar.edad}, ${estratega.avatar.ocupacion}:
-Frase que dice: "${estratega.avatar.cita_directa}"
+Frase: "${estratega.avatar.cita_directa}"
 Dolores: ${estratega.avatar.dolores.join(', ')}
 Objeciones: ${estratega.avatar.objeciones.join(', ')}
 Deseos: ${estratega.avatar.deseos.join(', ')}
@@ -108,38 +61,66 @@ Deseos: ${estratega.avatar.deseos.join(', ')}
 TRANSFORMACION:
 ANTES: ${estratega.promesa_before}
 DESPUES: ${estratega.promesa_after}
-RESULTADO: ${estratega.transformacion_visible}
 
-CONTENIDO DEL PRODUCTO:
+SECCIONES:
 ${seccionesLista}
 
-PRECIO: ~~$${estratega.precio_anchor}~~ → $${estratega.precio_principal} | Downsell: $${estratega.precio_downsell}
+PRECIO: $${estratega.precio_anchor} anclaje -> $${estratega.precio_principal} | Downsell: $${estratega.precio_downsell}
 
-DOLOR PRINCIPAL DEL MERCADO: ${investigador.dolor_principal}
-PLATAFORMAS DEL AVATAR: ${investigador.audiencia.plataformas.join(', ')}
+Escribe EXACTAMENTE en este formato (sin texto extra):
 
-Escribe todos los scripts de ventas para WhatsApp usando exactamente los delimitadores del system prompt.`
+[APERTURA]
+Primer mensaje del bot cuando llega un lead de Facebook. Maximo 3 parrafos cortos. Abre con el dolor o curiosidad. Tono amigable, como un amigo experto.
+[/APERTURA]
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userContent }],
-  })
+[PRESENTACION]
+Como presenta el producto. Beneficios, transformacion, precio con anclaje. Maximo 5 bloques de WhatsApp. Usa lineas cortas para que se vea bien en movil.
+[/PRESENTACION]
 
-  const raw = (message.content[0] as { type: string; text: string }).text
+[CIERRE]
+Script de cierre cuando el lead muestra interes. Urgencia etica, garantia, CTA claro. 2-3 parrafos.
+[/CIERRE]
 
-  const apertura = extractSection(raw, 'APERTURA')
-  const presentacion = extractSection(raw, 'PRESENTACION')
-  const cierre = extractSection(raw, 'CIERRE')
-  const entrega = extractSection(raw, 'ENTREGA')
-  const gancho1 = extractSection(raw, 'GANCHO_FB_1')
-  const gancho2 = extractSection(raw, 'GANCHO_FB_2')
-  const gancho3 = extractSection(raw, 'GANCHO_FB_3')
+[OBJECION_1]
+objecion: ${estratega.avatar.objeciones[0] ?? 'No tengo tiempo'}
+respuesta: respuesta empatica de 2-3 oraciones que disuelve esa objecion
+[/OBJECION_1]
 
-  if (!apertura || !presentacion) {
-    throw new Error('El agente Vendedor no genero el contenido esperado. Reintenta.')
-  }
+[OBJECION_2]
+objecion: ${estratega.avatar.objeciones[1] ?? 'Es muy caro'}
+respuesta: respuesta empatica de 2-3 oraciones
+[/OBJECION_2]
+
+[OBJECION_3]
+objecion: ${estratega.avatar.objeciones[2] ?? 'No se si funciona para mi'}
+respuesta: respuesta empatica de 2-3 oraciones
+[/OBJECION_3]
+
+[GANCHO_FB_1]
+Gancho PAS (Problema Agitacion Solucion) para anuncio Facebook. Maximo 120 palabras. Hace que la gente escriba al WhatsApp.
+[/GANCHO_FB_1]
+
+[GANCHO_FB_2]
+Gancho BAB (Antes Despues Puente) para anuncio Facebook. Maximo 120 palabras.
+[/GANCHO_FB_2]
+
+[GANCHO_FB_3]
+Gancho contraintuitivo o dato sorprendente para anuncio Facebook. Maximo 120 palabras.
+[/GANCHO_FB_3]
+
+[ENTREGA]
+Mensaje de WhatsApp cuando se confirma el pago. Celebra, da acceso, premia la decision. 2 parrafos.
+[/ENTREGA]`
+
+  const raw = await deepseekText(SYSTEM_PROMPT, userContent, 3000)
+
+  const apertura = extract(raw, 'APERTURA') || `Hola! Vi que te interesa ${estratega.nombre_producto}. Cuéntame, ¿cuál es tu mayor reto ahora mismo con ${investigador.dolor_principal}?`
+  const presentacion = extract(raw, 'PRESENTACION') || `${estratega.nombre_producto}: ${estratega.subtitulo}\n\nTransformación: ${estratega.promesa_after}\n\nPrecio especial: $${estratega.precio_principal}`
+  const cierre = extract(raw, 'CIERRE') || `Esta oferta es por tiempo limitado. ¿Te gustaría empezar hoy?`
+  const entrega = extract(raw, 'ENTREGA') || `¡Felicidades! Tu acceso está listo. Aquí tienes el enlace de descarga.`
+  const gancho1 = extract(raw, 'GANCHO_FB_1') || `¿Sigues luchando con ${investigador.dolor_principal}? Descubre cómo ${estratega.promesa_after}. Escríbenos al WhatsApp.`
+  const gancho2 = extract(raw, 'GANCHO_FB_2') || `Antes: ${estratega.promesa_before}. Después: ${estratega.promesa_after}. El puente: ${estratega.nombre_producto}.`
+  const gancho3 = extract(raw, 'GANCHO_FB_3') || `El 90% de personas con ${investigador.dolor_principal} lo hacen al revés. Te mostramos cómo hacerlo bien.`
 
   return {
     guion_apertura_whatsapp: apertura,
