@@ -1,16 +1,5 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@digitalmint_supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@digitalmint_supabase_anon_key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@digitalmint_service_role_key",
-    "ANTHROPIC_API_KEY": "@digitalmint_anthropic_key",
-    "OPENAI_API_KEY": "@digitalmint_openai_key",
-    "DEEPSEEK_API_KEY": "@digitalmint_deepseek_key",
-    "YCLOUD_API_KEY": "@digitalmint_ycloud_key",
-    "YCLOUD_WEBHOOK_SECRET": "@digitalmint_ycloud_secret",
-    "CRON_SECRET": "@digitalmint_cron_secret"
-  }
+  "installCommand": "npm install"
 }

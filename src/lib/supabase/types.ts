@@ -21,6 +21,8 @@ export interface EstructuraProducto {
     titulo: string
     descripcion: string
     transformacion: string
+    lecciones?: string[]
+    es_pareto?: boolean
   }>
 }
 
