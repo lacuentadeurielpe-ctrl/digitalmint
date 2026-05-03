@@ -1,115 +1,156 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { InvestigadorOutput } from './investigador'
 import type { EstrategaOutput } from './estratega'
-import type { CreadorOutput } from './creador'
+import type { ArquitectoOutput } from './arquitecto'
 
 export interface VendedorOutput {
-  pagina_ventas: string
-  ganchos_redes: [string, string, string]
-  email_lanzamiento: string
+  guion_apertura_whatsapp: string
+  guion_presentacion_producto: string
+  guion_cierre: string
+  respuestas_objeciones: Array<{ objecion: string; respuesta: string }>
+  ganchos_facebook: [string, string, string]
+  mensaje_entrega: string
 }
 
-const SYSTEM_PROMPT = `Eres el copywriter de conversión más peligroso del mundo hispanohablante. Tu copy vende porque:
+const SYSTEM_PROMPT = `Eres el copywriter de conversion mas efectivo del mundo hispanohablante. Especializas en ventas por WhatsApp — el canal de mayor confianza en Latinoamerica.
 
 MARCOS QUE APLICAS:
-- AIDA: Atención → Interés → Deseo → Acción
-- StoryBrand (Donald Miller): el cliente es el héroe, el producto es la guía
-- PAS: Problema → Agitación → Solución
-- Before-After-Bridge: situación actual → situación futura → el puente (el producto)
+- StoryBrand: el cliente es el heroe, el producto es la guia
+- PAS: Problema → Agitacion → Solucion
+- Principios Cialdini: reciprocidad, autoridad, prueba social, escasez, compromiso
+- Conversational selling: lenguaje natural, no corporativo, como un amigo experto
 
-PRINCIPIOS CIALDINI que aplicas en cada página:
-1. Reciprocidad: dar valor antes de pedir
-2. Autoridad: credenciales, resultados, datos
-3. Prueba social: testimonios implícitos, resultados de clientes
-4. Escasez: razón lógica de por qué actuar ahora
-5. Compromiso: micro-sí progresivos
-6. Simpatía: tono conversacional, empatía real
+TU OBJETIVO: crear scripts para un bot de WhatsApp que convierte leads de Facebook Ads en compradores.
 
-ESTRUCTURA DE LA PÁGINA DE VENTAS:
-1. HEADLINE (gancho de atención brutal - el dolor o la promesa)
-2. SUBHEADLINE (clarifica y amplía)
-3. HISTORIA DE IDENTIFICACIÓN (el cliente se ve reflejado)
-4. EL PROBLEMA AGITADO (antes de dar la solución)
-5. LA SOLUCIÓN PRESENTADA (el producto como héroe)
-6. LO QUE VAS A LOGRAR (bullets de beneficios, no features)
-7. QUÉ INCLUYE (la estructura del producto)
-8. PRECIO Y OFERTA (con anclaje)
-9. GARANTÍA (reducción de riesgo)
-10. CIERRE Y CTA (urgencia + beneficio)
+Formato de respuesta OBLIGATORIO — usa exactamente estos delimitadores:
 
-PARA LOS 3 GANCHOS DE REDES:
-- Gancho 1: PAS (Problema-Agitación-Solución) - formato de hilo/carrusel
-- Gancho 2: Before-After-Bridge - formato de historia personal
-- Gancho 3: Dato sorprendente o contraintuitivo - formato de opinión controversial
+[APERTURA]
+(Primer mensaje del bot cuando llega un lead de Facebook — maximo 3 parrafos cortos, tono amigable, abre con curiosidad o dolor)
+[/APERTURA]
 
-Devuelve SOLO JSON:
-{
-  "pagina_ventas": "La página de ventas completa en Markdown, con todos los secciones marcadas con ##",
-  "ganchos_redes": [
-    "Gancho 1 completo (PAS) - listo para publicar",
-    "Gancho 2 completo (BAB) - listo para publicar",
-    "Gancho 3 completo (dato/hook) - listo para publicar"
-  ],
-  "email_lanzamiento": "Email de lanzamiento completo con asunto y cuerpo"
-}`
+[PRESENTACION]
+(Como presenta el producto — beneficios, transformacion, precio con anclaje — maximo 5 bloques de WhatsApp)
+[/PRESENTACION]
+
+[CIERRE]
+(Script de cierre cuando el lead muestra interes — urgencia etica, garantia, CTA claro)
+[/CIERRE]
+
+[OBJECION_1]
+objecion: [la objecion exacta del avatar]
+respuesta: [respuesta empatica de 2-3 oraciones]
+[/OBJECION_1]
+
+[OBJECION_2]
+objecion: [objecion 2]
+respuesta: [respuesta]
+[/OBJECION_2]
+
+[OBJECION_3]
+objecion: [objecion 3]
+respuesta: [respuesta]
+[/OBJECION_3]
+
+[GANCHO_FB_1]
+(Gancho PAS para anuncio Facebook que hace que la gente escriba al WhatsApp — maximo 150 palabras)
+[/GANCHO_FB_1]
+
+[GANCHO_FB_2]
+(Gancho BAB — Antes/Despues/Puente — para anuncio Facebook)
+[/GANCHO_FB_2]
+
+[GANCHO_FB_3]
+(Gancho contraintuitivo o dato sorprendente para anuncio Facebook)
+[/GANCHO_FB_3]
+
+[ENTREGA]
+(Mensaje de WhatsApp cuando se confirma el pago — celebra, da acceso, premia la decision)
+[/ENTREGA]`
+
+function extractSection(text: string, tag: string): string {
+  const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i')
+  const match = text.match(regex)
+  return match ? match[1].trim() : ''
+}
+
+function extractObjecion(text: string, n: number): { objecion: string; respuesta: string } {
+  const raw = extractSection(text, `OBJECION_${n}`)
+  const objecionMatch = raw.match(/objecion:\s*(.+)/i)
+  const respuestaMatch = raw.match(/respuesta:\s*([\s\S]+)/i)
+  return {
+    objecion: objecionMatch?.[1]?.trim() ?? '',
+    respuesta: respuestaMatch?.[1]?.trim() ?? '',
+  }
+}
 
 export async function runVendedor(
   investigador: InvestigadorOutput,
   estratega: EstrategaOutput,
-  creador: CreadorOutput
+  arquitecto: ArquitectoOutput
 ): Promise<VendedorOutput> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const modulosList = creador.modulos
-    .map(m => `- ${m.titulo}: ${m.transformacion}`)
+  const seccionesLista = arquitecto.secciones
+    .map(s => `- ${s.titulo}${s.es_pareto ? ' ⭐' : ''}`)
     .join('\n')
 
-  const bonusList = creador.bonus
-    .map(b => `- ${b.titulo} (valor ${b.valor_percibido})`)
-    .join('\n')
+  const userContent = `PRODUCTO: ${estratega.nombre_producto}
+SUBTITULO: ${estratega.subtitulo}
+TIPO: ${arquitecto.tipo_producto}
+TOTAL CONTENIDO: ~${arquitecto.total_palabras_estimado.toLocaleString()} palabras de contenido real
+
+AVATAR — ${estratega.avatar.nombre_ficticio}, ${estratega.avatar.edad}, ${estratega.avatar.ocupacion}:
+Frase que dice: "${estratega.avatar.cita_directa}"
+Dolores: ${estratega.avatar.dolores.join(', ')}
+Objeciones: ${estratega.avatar.objeciones.join(', ')}
+Deseos: ${estratega.avatar.deseos.join(', ')}
+
+TRANSFORMACION:
+ANTES: ${estratega.promesa_before}
+DESPUES: ${estratega.promesa_after}
+RESULTADO: ${estratega.transformacion_visible}
+
+CONTENIDO DEL PRODUCTO:
+${seccionesLista}
+
+PRECIO: ~~$${estratega.precio_anchor}~~ → $${estratega.precio_principal} | Downsell: $${estratega.precio_downsell}
+
+DOLOR PRINCIPAL DEL MERCADO: ${investigador.dolor_principal}
+PLATAFORMAS DEL AVATAR: ${investigador.audiencia.plataformas.join(', ')}
+
+Escribe todos los scripts de ventas para WhatsApp usando exactamente los delimitadores del system prompt.`
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
-    temperature: 0.8,
+    max_tokens: 6000,
     system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: `PRODUCTO: ${estratega.nombre_producto}
-SUBTÍTULO: ${estratega.subtitulo}
-TIPO: ${creador.tipo_estructura}
-
-AVATAR (${estratega.avatar.nombre_ficticio}, ${estratega.avatar.edad}):
-- Dolor: ${estratega.avatar.cita_directa}
-- Objeciones: ${estratega.avatar.objeciones.join(', ')}
-
-TRANSFORMACIÓN:
-ANTES: ${estratega.promesa_before}
-DESPUÉS: ${estratega.promesa_after}
-RESULTADO VISIBLE: ${estratega.transformacion_visible}
-
-ESTRUCTURA (${creador.duracion_estimada}):
-${modulosList}
-
-BONUS:
-${bonusList}
-
-PRECIO:
-~~$${estratega.precio_anchor}~~ → $${estratega.precio_principal} | Downsell: $${estratega.precio_downsell}
-
-PAIN POINTS:
-- Principal: ${investigador.dolor_principal}
-- Secundarios: ${investigador.dolores_secundarios.join(', ')}
-
-PLATAFORMAS DEL AVATAR: ${investigador.audiencia.plataformas.join(', ')}
-
-Escribe el copy completo. Devuelve SOLO el JSON, sin markdown exterior.`,
-      },
-    ],
+    messages: [{ role: 'user', content: userContent }],
   })
 
   const raw = (message.content[0] as { type: string; text: string }).text
-  const jsonMatch = raw.match(/\{[\s\S]*\}/)
-  return JSON.parse(jsonMatch ? jsonMatch[0] : raw) as VendedorOutput
+
+  const apertura = extractSection(raw, 'APERTURA')
+  const presentacion = extractSection(raw, 'PRESENTACION')
+  const cierre = extractSection(raw, 'CIERRE')
+  const entrega = extractSection(raw, 'ENTREGA')
+  const gancho1 = extractSection(raw, 'GANCHO_FB_1')
+  const gancho2 = extractSection(raw, 'GANCHO_FB_2')
+  const gancho3 = extractSection(raw, 'GANCHO_FB_3')
+
+  if (!apertura || !presentacion) {
+    throw new Error('El agente Vendedor no genero el contenido esperado. Reintenta.')
+  }
+
+  return {
+    guion_apertura_whatsapp: apertura,
+    guion_presentacion_producto: presentacion,
+    guion_cierre: cierre,
+    respuestas_objeciones: [
+      extractObjecion(raw, 1),
+      extractObjecion(raw, 2),
+      extractObjecion(raw, 3),
+    ].filter(o => o.objecion),
+    ganchos_facebook: [gancho1, gancho2, gancho3],
+    mensaje_entrega: entrega,
+  }
 }

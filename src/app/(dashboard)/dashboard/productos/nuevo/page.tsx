@@ -13,6 +13,8 @@ const EJEMPLOS = [
 
 type AgentState = 'waiting' | 'running' | 'done'
 
+const TOTAL_AGENTS = 6
+
 async function runAgente(productId: string, agente: number): Promise<{ ok: boolean; next: number | null }> {
   const res = await fetch('/api/productos/agente', {
     method: 'POST',
@@ -30,7 +32,9 @@ export default function NuevoProductoPage() {
   const router = useRouter()
   const [idea, setIdea] = useState('')
   const [phase, setPhase] = useState<'form' | 'generating'>('form')
-  const [agentStates, setAgentStates] = useState<AgentState[]>(['waiting', 'waiting', 'waiting', 'waiting'])
+  const [agentStates, setAgentStates] = useState<AgentState[]>(
+    Array(TOTAL_AGENTS).fill('waiting') as AgentState[]
+  )
   const [error, setError] = useState('')
 
   function setAgentRunning(i: number) {
@@ -46,9 +50,8 @@ export default function NuevoProductoPage() {
 
     setPhase('generating')
     setError('')
-    setAgentStates(['waiting', 'waiting', 'waiting', 'waiting'])
+    setAgentStates(Array(TOTAL_AGENTS).fill('waiting') as AgentState[])
 
-    // 1. Crear producto en DB
     const res = await fetch('/api/productos/generar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,10 +64,8 @@ export default function NuevoProductoPage() {
     }
     const { productId } = await res.json()
 
-    // 2. Correr los 4 agentes en secuencia desde el cliente
-    // Cada llamada tiene su propio timeout de 60s en Vercel
     try {
-      for (let agente = 1; agente <= 4; agente++) {
+      for (let agente = 1; agente <= TOTAL_AGENTS; agente++) {
         setAgentRunning(agente - 1)
         await runAgente(productId, agente)
         setAgentDone(agente - 1)
@@ -84,7 +85,7 @@ export default function NuevoProductoPage() {
           <div className="text-4xl mb-3">🤖</div>
           <h1 className="text-2xl font-bold text-white mb-2">Generando tu producto</h1>
           <p className="text-slate-400 text-sm">
-            4 agentes de IA están trabajando en tu idea. Esto toma entre 30 y 60 segundos.
+            6 agentes de IA trabajan en tu idea. Esto toma entre 3 y 5 minutos.
           </p>
         </div>
 
@@ -96,7 +97,7 @@ export default function NuevoProductoPage() {
         <AgentProgress agentStates={agentStates} />
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          No cierres esta pestaña mientras se genera tu producto
+          No cierres esta pestaña — el Agente Escritores genera el contenido completo en paralelo
         </p>
       </div>
     )
@@ -107,7 +108,7 @@ export default function NuevoProductoPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white mb-2">Nuevo producto</h1>
         <p className="text-slate-400">
-          Describe tu idea con el mayor detalle posible. Cuanto más específico seas, mejor será el resultado.
+          Describe tu idea. En minutos tendrás un producto digital completo listo para vender.
         </p>
       </div>
 
@@ -127,9 +128,8 @@ export default function NuevoProductoPage() {
           <p className="text-xs text-slate-500 mt-1">{idea.length} caracteres — mínimo recomendado: 50</p>
         </div>
 
-        {/* Ejemplos */}
         <div>
-          <p className="text-xs text-slate-500 mb-2">Ejemplos de ideas (haz click para usar):</p>
+          <p className="text-xs text-slate-500 mb-2">Ejemplos (haz click para usar):</p>
           <div className="space-y-2">
             {EJEMPLOS.map((ej, i) => (
               <button
@@ -155,23 +155,24 @@ export default function NuevoProductoPage() {
           disabled={idea.trim().length < 20}
           className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          ✨ Generar producto con IA
+          ✨ Generar producto completo con IA
         </button>
       </form>
 
-      {/* Qué genera */}
       <div className="mt-10 p-5 bg-slate-800/30 border border-white/5 rounded-xl">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Qué recibirás en minutos
+          Qué recibirás — producto digital completo
         </p>
         <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
           {[
             '📋 Nombre + subtítulo memorable',
             '👤 Avatar psicográfico detallado',
             '💰 Precio con estrategia de anclaje',
-            '📦 Estructura completa del producto',
-            '🏪 Página de ventas lista para publicar',
-            '📱 3 ganchos para redes sociales',
+            '📦 20,000+ palabras de contenido real',
+            '📥 Descargable como PDF completo',
+            '💬 Scripts de WhatsApp para vender',
+            '📱 3 ganchos para Facebook Ads',
+            '🏗️ Estructura con Biblia del producto',
           ].map(item => (
             <div key={item} className="flex items-center gap-2">
               <span>{item}</span>

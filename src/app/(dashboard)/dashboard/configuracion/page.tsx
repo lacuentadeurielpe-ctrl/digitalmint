@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import BotConfigClient from '@/components/configuracion/BotConfigClient'
+import WebhookConfigClient from '@/components/configuracion/WebhookConfigClient'
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient()
@@ -9,6 +11,8 @@ export default async function ConfiguracionPage() {
     .select('*')
     .eq('user_id', user!.id)
     .single()
+
+  const s = settings as any
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
@@ -21,7 +25,7 @@ export default async function ConfiguracionPage() {
       <Section title="👤 Cuenta">
         <div className="space-y-3">
           <Info label="Email" value={user!.email ?? '—'} />
-          <Info label="Plan" value={settings?.plan ?? 'free'} badge />
+          <Info label="Plan" value={s?.plan ?? 'free'} badge />
           <Info label="Miembro desde" value={new Date(user!.created_at).toLocaleDateString('es-PE')} />
         </div>
       </Section>
@@ -31,11 +35,43 @@ export default async function ConfiguracionPage() {
         <p className="text-sm text-slate-400 mb-4">
           Conecta tu número de WhatsApp para activar el bot que responde consultas sobre tus productos digitales.
         </p>
-        <BotConfigForm
-          botActivo={settings?.bot_activo ?? false}
-          botPhone={settings?.bot_phone ?? ''}
-          yclouKey={settings?.ycloud_api_key ?? ''}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+            <div>
+              <p className="text-sm text-white">Estado del bot</p>
+              <p className="text-xs text-slate-500">{s?.bot_activo ? 'Activo y respondiendo' : 'Inactivo'}</p>
+            </div>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+              s?.bot_activo ? 'bg-green-500/20 text-green-300' : 'bg-slate-700 text-slate-400'
+            }`}>
+              {s?.bot_activo ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Número de WhatsApp</p>
+            <p className="text-sm text-slate-300">{s?.bot_phone || 'No configurado'}</p>
+          </div>
+          <BotConfigClient
+            botActivo={s?.bot_activo ?? false}
+            botPhone={s?.bot_phone ?? ''}
+            yclouKey={s?.ycloud_api_key ?? ''}
+            userId={user!.id}
+          />
+        </div>
+      </Section>
+
+      {/* Webhooks de exportación */}
+      <Section title="🔗 Webhooks de exportación">
+        <p className="text-sm text-slate-400 mb-4">
+          Cuando exportes un producto, se enviará automáticamente a estas URLs con todos los datos generados por IA.
+          Compatible con Gumroad, Hotmart, Stripe, Make, Zapier o cualquier endpoint HTTP.
+        </p>
+        <WebhookConfigClient
           userId={user!.id}
+          webhookGumroad={s?.webhook_gumroad ?? ''}
+          webhookHotmart={s?.webhook_hotmart ?? ''}
+          webhookStripe={s?.webhook_stripe ?? ''}
+          webhookCustom={s?.webhook_custom ?? ''}
         />
       </Section>
 
@@ -78,34 +114,3 @@ function Info({ label, value, badge }: { label: string; value: string; badge?: b
     </div>
   )
 }
-
-function BotConfigForm({ botActivo, botPhone, yclouKey, userId }: {
-  botActivo: boolean
-  botPhone: string
-  yclouKey: string
-  userId: string
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
-        <div>
-          <p className="text-sm text-white">Estado del bot</p>
-          <p className="text-xs text-slate-500">{botActivo ? 'Activo y respondiendo' : 'Inactivo'}</p>
-        </div>
-        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-          botActivo ? 'bg-green-500/20 text-green-300' : 'bg-slate-700 text-slate-400'
-        }`}>
-          {botActivo ? 'Activo' : 'Inactivo'}
-        </span>
-      </div>
-      <div>
-        <p className="text-xs text-slate-500 mb-1">Número de WhatsApp</p>
-        <p className="text-sm text-slate-300">{botPhone || 'No configurado'}</p>
-      </div>
-      <BotConfigClient botActivo={botActivo} botPhone={botPhone} yclouKey={yclouKey} userId={userId} />
-    </div>
-  )
-}
-
-// Client component para el formulario interactivo
-import BotConfigClient from '@/components/configuracion/BotConfigClient'

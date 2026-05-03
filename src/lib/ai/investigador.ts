@@ -21,15 +21,15 @@ export interface InvestigadorOutput {
 const SYSTEM_PROMPT = `Eres un investigador de mercados senior especializado en productos digitales (cursos, ebooks, templates, herramientas).
 
 Tu análisis se basa en:
-- Jobs-to-be-done framework (Clayton Christensen): qué "trabajo" contrata el cliente al comprar
+- Jobs-to-be-done framework (Clayton Christensen)
 - Psicología del dolor real: dolores funcionales, emocionales y sociales
 - Dinámica competitiva: qué existe y dónde están los huecos
 - Segmentación psicográfica: actitudes, valores, comportamientos
 
-SIEMPRE devuelves JSON válido con exactamente esta estructura:
+Devuelve SOLO un objeto JSON válido con exactamente esta estructura (sin markdown, sin explicaciones):
 {
   "mercado": "nombre del mercado/nicho",
-  "tamano_mercado": "estimación del tamaño (ej: 2.3M personas en LATAM)",
+  "tamano_mercado": "estimación del tamaño",
   "dolor_principal": "el dolor #1 más intenso y urgente del mercado",
   "dolores_secundarios": ["dolor 2", "dolor 3", "dolor 4"],
   "audiencia": {
@@ -53,16 +53,17 @@ export async function runInvestigador(idea: string): Promise<InvestigadorOutput>
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0.3,
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Analiza esta idea de producto digital para el mercado hispanohablante:\n\n"${idea}"\n\nDevuelve SOLO el JSON, sin markdown ni explicaciones.`,
+        content: `Analiza esta idea de producto digital para el mercado hispanohablante:\n\n"${idea}"\n\nDevuelve SOLO el JSON.`,
       },
     ],
-    response_format: { type: 'json_object' },
   })
 
-  const raw = response.choices[0].message.content!
+  const raw = response.choices[0].message.content ?? '{}'
   return JSON.parse(raw) as InvestigadorOutput
 }

@@ -3,10 +3,12 @@
 import { cn } from '@/lib/utils'
 
 const AGENTS = [
-  { label: 'Investigador', desc: 'Analizando mercado y competencia', icon: '🔍' },
-  { label: 'Estratega', desc: 'Definiendo nombre, precio y avatar', icon: '🧠' },
-  { label: 'Creador', desc: 'Construyendo estructura del producto', icon: '🏗️' },
-  { label: 'Vendedor', desc: 'Escribiendo la página de ventas', icon: '✍️' },
+  { label: 'Investigador', desc: 'Analizando mercado, competencia y dolores reales', icon: '🔍' },
+  { label: 'Estratega', desc: 'Definiendo nombre, precio, avatar y posicionamiento', icon: '🧠' },
+  { label: 'Arquitecto', desc: 'Diseñando estructura y escribiendo la Biblia del producto', icon: '📐' },
+  { label: 'Escritores', desc: 'Equipo paralelo escribiendo cada sección del producto', icon: '✍️' },
+  { label: 'Editor Jefe', desc: 'Redactando introducción, conclusión y tabla de contenidos', icon: '📝' },
+  { label: 'Vendedor', desc: 'Creando scripts de WhatsApp y ganchos para Facebook Ads', icon: '🚀' },
 ]
 
 type AgentState = 'waiting' | 'running' | 'done'
@@ -32,7 +34,6 @@ export default function AgentProgress({ agentStates }: Props) {
               state === 'waiting' && 'border-white/5 bg-white/2 opacity-50'
             )}
           >
-            {/* Icon / Status */}
             <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg relative">
               {state === 'running' ? (
                 <span className="animate-pulse">{agent.icon}</span>
@@ -46,7 +47,6 @@ export default function AgentProgress({ agentStates }: Props) {
               )}
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-mono">#{agentNum}</span>
@@ -64,7 +64,6 @@ export default function AgentProgress({ agentStates }: Props) {
               <p className="text-xs text-slate-500 mt-0.5">{agent.desc}</p>
             </div>
 
-            {/* State label */}
             <div className="shrink-0">
               {state === 'running' && (
                 <span className="text-xs text-purple-400 font-medium animate-pulse">

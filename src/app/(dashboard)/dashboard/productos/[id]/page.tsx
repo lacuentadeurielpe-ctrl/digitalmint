@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { formatUSD } from '@/lib/utils'
 import type { AvatarCliente, EstructuraProducto, EstrategiaPrecio, ProductStatus } from '@/lib/supabase/types'
 import CopyButton from '@/components/productos/CopyButton'
+import ExportButtons from '@/components/productos/ExportButtons'
 
 type ProductRow = {
   id: string
@@ -18,9 +20,28 @@ type ProductRow = {
   estructura_producto: EstructuraProducto | null
   precio_sugerido: number | null
   estrategia_precio: EstrategiaPrecio | null
-  pagina_ventas: string | null
   ganchos_redes: string[] | null
+  vendedor_output: Record<string, unknown> | null
+  tipo_producto: string | null
+  tamano_total_palabras: number | null
   created_at: string
+}
+
+type ContenidoRow = {
+  id: string
+  orden: number
+  tipo_seccion: string
+  titulo: string
+  contenido: string
+  palabras_count: number
+}
+
+type VendedorUI = {
+  guion_apertura_whatsapp?: string
+  guion_presentacion_producto?: string
+  guion_cierre?: string
+  mensaje_entrega?: string
+  respuestas_objeciones?: Array<{ objecion: string; respuesta: string }>
 }
 
 export default async function ProductoDetailPage({ params }: { params: { id: string } }) {
@@ -51,10 +72,24 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
     )
   }
 
+  // Fetch product content sections
+  const admin = createAdminClient()
+  const { data: contenido } = await admin
+    .from('producto_contenido')
+    .select('id, orden, tipo_seccion, titulo, contenido, palabras_count')
+    .eq('product_id', p.id)
+    .order('orden', { ascending: true })
+
+  const secciones = (contenido ?? []) as ContenidoRow[]
+
   const avatar = p.avatar_cliente as AvatarCliente | null
   const estructura = p.estructura_producto as EstructuraProducto | null
   const precio = p.estrategia_precio as EstrategiaPrecio | null
   const ganchos = p.ganchos_redes as string[] | null
+  const vendedor = p.vendedor_output as VendedorUI | null
+
+  const totalPalabras = p.tamano_total_palabras
+    ?? secciones.reduce((sum, s) => sum + (s.palabras_count ?? 0), 0)
 
   return (
     <div className="p-8 max-w-4xl mx-auto pb-20">
@@ -65,6 +100,18 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
         </a>
         <div className="flex items-start justify-between gap-4">
           <div>
+            <div className="flex items-center gap-2 mb-1">
+              {p.tipo_producto && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium capitalize">
+                  {p.tipo_producto}
+                </span>
+              )}
+              {totalPalabras > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
+                  {totalPalabras.toLocaleString()} palabras
+                </span>
+              )}
+            </div>
             <h1 className="text-3xl font-bold text-white">{p.nombre_producto}</h1>
             <p className="text-slate-400 mt-1">{p.subtitulo}</p>
           </div>
@@ -79,10 +126,8 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
         </div>
       </div>
 
-      {/* Tabs de exportación */}
-      <div className="flex gap-2 mb-8">
-        <CopyButton text={p.pagina_ventas ?? ''} label="📋 Copiar página de ventas" />
-      </div>
+      {/* Exportación */}
+      <ExportButtons productId={p.id} isComplete={p.status === 'complete'} />
 
       {/* Transformación */}
       <Section title="🔄 Transformación prometida">
@@ -97,6 +142,38 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
           </div>
         </div>
       </Section>
+
+      {/* Contenido del producto */}
+      {secciones.length > 0 && (
+        <Section title={`📦 Contenido del producto (${secciones.length} secciones)`}>
+          <div className="space-y-2">
+            {secciones.map((sec) => (
+              <details key={sec.id} className="group">
+                <summary className="flex items-center justify-between p-4 bg-slate-800/50 border border-white/5 rounded-xl cursor-pointer hover:border-purple-500/30 transition list-none">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono text-slate-500 w-6 shrink-0">
+                      {sec.tipo_seccion === 'toc' ? '📋' :
+                       sec.tipo_seccion === 'intro' ? '👋' :
+                       sec.tipo_seccion === 'conclusion' ? '🏁' :
+                       sec.tipo_seccion === 'bonus' ? '🎁' : `${sec.orden}.`}
+                    </span>
+                    <span className="text-sm font-semibold text-white group-open:text-purple-300 transition">
+                      {sec.titulo}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-slate-500">{sec.palabras_count?.toLocaleString()} palabras</span>
+                    <span className="text-slate-500 group-open:rotate-180 transition-transform">▾</span>
+                  </div>
+                </summary>
+                <div className="mt-1 mb-3 p-5 bg-slate-900/60 rounded-xl border border-white/5 text-sm text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+                  {sec.contenido}
+                </div>
+              </details>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Avatar */}
       {avatar && (
@@ -126,16 +203,16 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
 
       {/* Estructura */}
       {estructura && (
-        <Section title="📦 Estructura del producto">
+        <Section title="🗺️ Estructura del producto">
           <p className="text-sm text-slate-400 mb-4">{estructura.tipo}</p>
           <div className="space-y-3">
             {estructura.modulos?.map((mod) => (
               <div key={mod.numero} className="p-4 bg-slate-800/50 border border-white/5 rounded-xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs text-purple-400 font-mono">Módulo {mod.numero}</span>
+                  <span className="text-xs text-purple-400 font-mono">#{mod.numero}</span>
                   {mod.es_pareto && (
                     <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">
-                      ⭐ 80% del valor
+                      ⭐ Núcleo Pareto
                     </span>
                   )}
                 </div>
@@ -148,9 +225,53 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
         </Section>
       )}
 
-      {/* Ganchos para redes */}
+      {/* Scripts WhatsApp */}
+      {vendedor && (
+        <Section title="💬 Scripts de ventas WhatsApp">
+          {vendedor.guion_apertura_whatsapp && (
+            <ScriptCard
+              label="Apertura — primer mensaje al lead"
+              content={vendedor.guion_apertura_whatsapp as string}
+            />
+          )}
+          {vendedor.guion_presentacion_producto && (
+            <ScriptCard
+              label="Presentación del producto"
+              content={vendedor.guion_presentacion_producto as string}
+            />
+          )}
+          {vendedor.guion_cierre && (
+            <ScriptCard
+              label="Cierre — cuando muestra interés"
+              content={vendedor.guion_cierre as string}
+            />
+          )}
+          {vendedor.mensaje_entrega && (
+            <ScriptCard
+              label="Mensaje de entrega post-pago"
+              content={vendedor.mensaje_entrega as string}
+            />
+          )}
+
+          {(vendedor.respuestas_objeciones?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Manejo de objeciones</p>
+              <div className="space-y-3">
+                {vendedor.respuestas_objeciones!.map((obj, i) => (
+                  <div key={i} className="p-4 bg-slate-800/50 border border-white/5 rounded-xl">
+                    <p className="text-xs text-yellow-400 font-semibold mb-1">❝ {obj.objecion}</p>
+                    <p className="text-xs text-slate-300">{obj.respuesta}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Ganchos Facebook */}
       {ganchos && ganchos.length > 0 && (
-        <Section title="📱 Ganchos para redes sociales">
+        <Section title="📱 Ganchos para Facebook Ads">
           <div className="space-y-4">
             {ganchos.map((gancho, i) => (
               <div key={i} className="p-4 bg-slate-800/50 border border-white/5 rounded-xl relative group">
@@ -166,18 +287,6 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
           </div>
         </Section>
       )}
-
-      {/* Página de ventas */}
-      {p.pagina_ventas && (
-        <Section title="🏪 Página de ventas">
-          <div className="flex justify-end mb-3">
-            <CopyButton text={p.pagina_ventas} label="📋 Copiar todo" />
-          </div>
-          <div className="p-5 bg-slate-900 rounded-xl border border-white/5 text-sm text-slate-300 whitespace-pre-wrap font-mono max-h-96 overflow-y-auto">
-            {p.pagina_ventas}
-          </div>
-        </Section>
-      )}
     </div>
   )
 }
@@ -187,6 +296,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-white mb-4">{title}</h2>
       {children}
+    </div>
+  )
+}
+
+function ScriptCard({ label, content }: { label: string; content: string }) {
+  return (
+    <div className="mb-4 p-4 bg-slate-800/50 border border-white/5 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-slate-500 uppercase tracking-wider">{label}</p>
+        <CopyButton text={content} label="Copiar" small />
+      </div>
+      <p className="text-sm text-slate-300 whitespace-pre-wrap">{content}</p>
     </div>
   )
 }
@@ -217,4 +338,3 @@ function ListInfo({ label, items, color }: { label: string; items: string[]; col
     </div>
   )
 }
-

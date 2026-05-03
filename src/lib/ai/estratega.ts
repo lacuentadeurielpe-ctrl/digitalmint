@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { deepseekJSON } from './deepseek'
 import type { InvestigadorOutput } from './investigador'
 
 export interface EstrategaOutput {
@@ -27,79 +27,61 @@ export interface EstrategaOutput {
   tipo_producto: string
 }
 
-const SYSTEM_PROMPT = `Eres un estratega de posicionamiento y pricing para productos digitales. Aplicás:
+const SYSTEM_PROMPT = `Eres un estratega de posicionamiento y pricing para productos digitales hispanohablantes.
 
-- Blue Ocean Strategy: crear espacio de mercado sin competencia directa
-- Semiótica aplicada al naming: nombres que evocan la transformación, son memorables, únicos
-- Psicología Kahneman: Sistema 1 (emocional) y Sistema 2 (racional) del comprador
-- Economía conductual Ariely: anclaje de precios, precio de referencia, efecto señuelo
-- Principio de transformación: el producto debe prometer un BEFORE→AFTER visible y prometible
+Aplicas:
+- Blue Ocean Strategy: espacio de mercado sin competencia directa
+- Semiotica al naming: nombres que evocan transformacion, memorables, unicos (2-3 palabras max)
+- Psicologia Kahneman: Sistema 1 (emocional) y Sistema 2 (racional) del comprador
+- Ariely: anclaje de precios, precio de referencia, efecto seneuelo
+- Principio before->after: el producto promete un cambio visible y prometible
 
-REGLAS DE NAMING:
-- Máximo 2-3 palabras
-- Evoca la transformación, no el proceso
-- Suena premium y memorable
-- Puede ser en inglés, español o mezcla según el mercado
-- Ejemplos buenos: "Launch School", "Zero to Mastery", "Notion Mastery", "Copy Hacker"
+PRECIOS: precio_anchor = 3-5x el principal. precio_downsell = 60-70% del principal.
 
-REGLAS DE PRICING:
-- precio_anchor: precio "tachado" de referencia (3-5x el principal)
-- precio_principal: precio real de venta
-- precio_downsell: versión reducida si no compran (60-70% del principal)
-- Justifica con transformación, no con horas de contenido
+Responde SOLO con JSON valido. No uses caracteres especiales dentro de los valores de string que rompan el JSON. Devuelve exactamente los campos del schema pedido.`
 
-Devuelve SOLO JSON válido con exactamente esta estructura:
+export async function runEstrateга(
+  idea: string,
+  investigador: InvestigadorOutput
+): Promise<EstrategaOutput> {
+  const userContent = `Idea original: "${idea}"
+
+Investigacion de mercado:
+- Mercado: ${investigador.mercado}
+- Dolor principal: ${investigador.dolor_principal}
+- Dolores secundarios: ${investigador.dolores_secundarios.join(', ')}
+- Audiencia: ${investigador.audiencia.descripcion}
+- Edad: ${investigador.audiencia.edad_rango}, Ocupacion: ${investigador.audiencia.ocupacion}
+- Nivel ingresos: ${investigador.audiencia.nivel_ingresos}
+- Diferenciadores posibles: ${investigador.diferenciadores_posibles.join(', ')}
+- JTBD: ${investigador.jtbd}
+
+Devuelve este JSON completo:
 {
-  "nombre_producto": "Nombre del Producto",
-  "justificacion_nombre": "por qué este nombre funciona semiótica y psicológicamente",
-  "subtitulo": "subtítulo de 1 línea que completa el nombre y clarifica la propuesta",
-  "posicionamiento": "en qué océano azul está este producto, qué lo hace único",
-  "promesa_before": "situación actual dolorosa del cliente (1-2 oraciones en primera persona)",
-  "promesa_after": "situación futura deseada después del producto (1-2 oraciones en primera persona)",
-  "transformacion_visible": "qué resultado concreto y medible promete el producto",
+  "nombre_producto": "Nombre Memorable",
+  "justificacion_nombre": "explicacion semiotica",
+  "subtitulo": "subtitulo de 1 linea que clarifica la propuesta",
+  "posicionamiento": "que oceano azul ocupa este producto",
+  "promesa_before": "situacion actual dolorosa en primera persona",
+  "promesa_after": "situacion futura deseada en primera persona",
+  "transformacion_visible": "resultado concreto y medible",
   "avatar": {
-    "nombre_ficticio": "nombre de persona ficticia representativa",
-    "edad": "ej: 32 años",
-    "ocupacion": "ocupación específica",
+    "nombre_ficticio": "Nombre Apellido",
+    "edad": "32 anos",
+    "ocupacion": "ocupacion especifica",
     "dolores": ["dolor 1", "dolor 2", "dolor 3"],
     "deseos": ["deseo 1", "deseo 2", "deseo 3"],
-    "objeciones": ["objeción 1", "objeción 2", "objeción 3"],
-    "donde_vive": "plataformas y comunidades donde está",
+    "objeciones": ["objecion 1", "objecion 2", "objecion 3"],
+    "donde_vive": "plataformas donde esta",
     "nivel_ingresos": "ingresos actuales aproximados",
-    "cita_directa": "frase que diría este avatar sobre su problema (en primera persona)"
+    "cita_directa": "frase que diria en primera persona"
   },
   "precio_anchor": 297,
   "precio_principal": 97,
   "precio_downsell": 67,
-  "justificacion_precio": "por qué este precio es el correcto para este mercado y transformación",
-  "tipo_producto": "curso online | ebook | template pack | workshop | membresía | herramienta"
+  "justificacion_precio": "por que este precio es correcto",
+  "tipo_producto": "curso online"
 }`
 
-export async function runEstrategа(
-  idea: string,
-  investigador: InvestigadorOutput
-): Promise<EstrategaOutput> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2000,
-    temperature: 0.7,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: `Idea original: "${idea}"
-
-Datos de investigación de mercado:
-${JSON.stringify(investigador, null, 2)}
-
-Crea la estrategia completa de posicionamiento y pricing. Devuelve SOLO el JSON, sin markdown.`,
-      },
-    ],
-  })
-
-  const raw = (message.content[0] as { type: string; text: string }).text
-  const jsonMatch = raw.match(/\{[\s\S]*\}/)
-  return JSON.parse(jsonMatch ? jsonMatch[0] : raw) as EstrategaOutput
+  return deepseekJSON<EstrategaOutput>(SYSTEM_PROMPT, userContent, 3000)
 }
