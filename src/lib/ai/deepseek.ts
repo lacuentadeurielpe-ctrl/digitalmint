@@ -5,6 +5,9 @@ export function createDeepSeek() {
   return new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: process.env.DEEPSEEK_API_KEY,
+    // Vercel Hobby = 60s. Cap requests at 45s so we always have time to recover.
+    timeout: 45_000,
+    maxRetries: 0,
   })
 }
 

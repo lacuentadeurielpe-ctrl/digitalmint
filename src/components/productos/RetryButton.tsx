@@ -33,9 +33,20 @@ export default function RetryButton({ productId }: Props) {
     setErr('')
     setProgress(0)
     try {
-      for (let agente = 1; agente <= 6; agente++) {
+      // Agents 1-4 are critical (must succeed)
+      for (let agente = 1; agente <= 4; agente++) {
         setProgress(agente - 1)
         await runAgente(productId, agente)
+        setProgress(agente)
+      }
+      // Agents 5 and 6 are optional bonuses — failure is not fatal
+      for (let agente = 5; agente <= 6; agente++) {
+        setProgress(agente - 1)
+        try {
+          await runAgente(productId, agente)
+        } catch (bonusErr) {
+          console.warn(`Agente ${agente} (bonus) falló pero el producto está completo:`, bonusErr)
+        }
         setProgress(agente)
       }
       router.push(`/dashboard/productos/${productId}`)

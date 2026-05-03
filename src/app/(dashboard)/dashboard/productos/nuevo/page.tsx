@@ -65,9 +65,20 @@ export default function NuevoProductoPage() {
     const { productId } = await res.json()
 
     try {
-      for (let agente = 1; agente <= TOTAL_AGENTS; agente++) {
+      // Critical agents 1-4 — must succeed (Agent 4 marks product as 'complete')
+      for (let agente = 1; agente <= 4; agente++) {
         setAgentRunning(agente - 1)
         await runAgente(productId, agente)
+        setAgentDone(agente - 1)
+      }
+      // Bonus agents 5-6 — failures are not fatal (product is already complete)
+      for (let agente = 5; agente <= TOTAL_AGENTS; agente++) {
+        setAgentRunning(agente - 1)
+        try {
+          await runAgente(productId, agente)
+        } catch (bonusErr) {
+          console.warn(`Agente ${agente} (extras) falló:`, bonusErr)
+        }
         setAgentDone(agente - 1)
       }
       router.push(`/dashboard/productos/${productId}`)
