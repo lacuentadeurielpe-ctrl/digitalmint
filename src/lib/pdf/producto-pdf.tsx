@@ -217,6 +217,7 @@ interface Props {
   // Personalization
   footerText?: string
   theme?: PdfTheme
+  showTransformation?: boolean
   showAvatar?: boolean
   showScripts?: boolean
   showGanchos?: boolean
@@ -250,9 +251,10 @@ export function ProductoPDF({
   vendedor_output,
   footerText,
   theme = 'dark',
-  showAvatar = true,
-  showScripts = true,
-  showGanchos = true,
+  showTransformation = false,
+  showAvatar = false,
+  showScripts = false,
+  showGanchos = false,
   customTitle,
   customSubtitle,
 }: Props) {
@@ -341,77 +343,70 @@ export function ProductoPDF({
         </Page>
       )}
 
-      {/* ── TRANSFORMACIÓN + AVATAR ── */}
-      <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
-        <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>TRANSFORMACIÓN PROMETIDA</Text>
-        <View style={L.beforeAfterRow}>
-          {promesa_before && (
-            <View style={[L.beforeCard, { backgroundColor: t.beforeBg, borderLeftColor: t.beforeBorder }]}>
-              <Text style={[T.baLabel, { color: t.baLabelBefore }]}>ANTES</Text>
-              <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_before}</Text>
-            </View>
-          )}
-          {promesa_after && (
-            <View style={[L.afterCard, { backgroundColor: t.afterBg, borderLeftColor: t.afterBorder }]}>
-              <Text style={[T.baLabel, { color: t.baLabelAfter }]}>DESPUÉS</Text>
-              <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_after}</Text>
-            </View>
-          )}
-        </View>
-
-        {showAvatar && avatar && (
-          <>
-            <View style={[L.divider, { backgroundColor: t.dividerColor }]} />
-            <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>AVATAR DEL CLIENTE IDEAL</Text>
-            <Text style={[T.label, { color: t.textDim }]}>Perfil</Text>
-            <Text style={[T.value, { color: t.textSecondary }]}>
-              {avatar.nombre_ficticio} · {avatar.edad} · {avatar.ocupacion}
-            </Text>
-            {avatar.cita_directa && (
-              <View style={[L.quote, { borderLeftColor: t.accent }]}>
-                <Text style={[T.quoteText, { color: t.textSecondary }]}>"{avatar.cita_directa}"</Text>
-                <Text style={[T.quoteAuthor, { color: t.textDim }]}>— {avatar.nombre_ficticio}</Text>
+      {/* ── TRANSFORMACIÓN (opcional) ── */}
+      {showTransformation && (promesa_before || promesa_after) && (
+        <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+          <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>TRANSFORMACIÓN PROMETIDA</Text>
+          <View style={L.beforeAfterRow}>
+            {promesa_before && (
+              <View style={[L.beforeCard, { backgroundColor: t.beforeBg, borderLeftColor: t.beforeBorder }]}>
+                <Text style={[T.baLabel, { color: t.baLabelBefore }]}>ANTES</Text>
+                <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_before}</Text>
               </View>
             )}
-            <View style={L.twoCols}>
-              <View style={L.col}>
-                <Text style={[T.label, { color: t.textDim }]}>Dolores</Text>
-                {avatar.dolores?.map((d, i) => <Bullet key={i} text={d} />)}
+            {promesa_after && (
+              <View style={[L.afterCard, { backgroundColor: t.afterBg, borderLeftColor: t.afterBorder }]}>
+                <Text style={[T.baLabel, { color: t.baLabelAfter }]}>DESPUÉS</Text>
+                <Text style={[T.baText, { color: t.textSecondary }]}>{promesa_after}</Text>
               </View>
-              <View style={L.col}>
-                <Text style={[T.label, { color: t.textDim }]}>Deseos</Text>
-                {avatar.deseos?.map((d, i) => <Bullet key={i} text={d} />)}
-              </View>
+            )}
+          </View>
+          <PageFooter />
+        </Page>
+      )}
+
+      {/* ── AVATAR (opcional) ── */}
+      {showAvatar && avatar && (
+        <Page size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
+          <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>AVATAR DEL CLIENTE IDEAL</Text>
+          <Text style={[T.label, { color: t.textDim }]}>Perfil</Text>
+          <Text style={[T.value, { color: t.textSecondary }]}>
+            {avatar.nombre_ficticio} · {avatar.edad} · {avatar.ocupacion}
+          </Text>
+          {avatar.cita_directa && (
+            <View style={[L.quote, { borderLeftColor: t.accent }]}>
+              <Text style={[T.quoteText, { color: t.textSecondary }]}>"{avatar.cita_directa}"</Text>
+              <Text style={[T.quoteAuthor, { color: t.textDim }]}>— {avatar.nombre_ficticio}</Text>
             </View>
-          </>
-        )}
-        <PageFooter />
-      </Page>
+          )}
+          <View style={L.twoCols}>
+            <View style={L.col}>
+              <Text style={[T.label, { color: t.textDim }]}>Dolores</Text>
+              {avatar.dolores?.map((d, i) => <Bullet key={i} text={d} />)}
+            </View>
+            <View style={L.col}>
+              <Text style={[T.label, { color: t.textDim }]}>Deseos</Text>
+              {avatar.deseos?.map((d, i) => <Bullet key={i} text={d} />)}
+            </View>
+          </View>
+          <PageFooter />
+        </Page>
+      )}
 
       {/* ── CONTENIDO PRINCIPAL ── */}
       {orderedSections.map((sec) => {
         const cleanedContent = cleanMarkdown(sec.contenido)
-        const preview = cleanedContent.slice(0, 3000)
-        const hasMore = cleanedContent.length > 3000
+        const sectionLabel =
+          sec.tipo_seccion === 'intro'       ? 'INTRODUCCIÓN' :
+          sec.tipo_seccion === 'conclusion'  ? 'CONCLUSIÓN' :
+          sec.tipo_seccion === 'bonus'       ? 'BONUS' :
+          `SECCIÓN ${sec.orden}`
 
         return (
           <Page key={sec.orden} size="A4" style={[L.pagePadded, { backgroundColor: t.pageBg }]}>
-            <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>
-              {sec.tipo_seccion === 'intro' ? 'INTRODUCCIÓN' :
-               sec.tipo_seccion === 'conclusion' ? 'CONCLUSIÓN' :
-               sec.tipo_seccion === 'bonus' ? `BONUS · ${sec.orden}` :
-               `SECCIÓN ${sec.orden}`}
-            </Text>
+            <Text style={[T.sectionLabel, { color: t.sectionLabel }]}>{sectionLabel}</Text>
             <Text style={[T.h2, { color: t.textPrimary }]}>{sec.titulo}</Text>
-            <View style={[L.contentBox, { backgroundColor: t.contentBg }]}>
-              <Text style={[T.contentTitle, { color: t.contentTitle }]}>{sec.titulo}</Text>
-              <Text style={[T.contentText, { color: t.textMuted }]}>{preview}</Text>
-              {hasMore && (
-                <Text style={[T.contentText, { color: t.textDim, marginTop: 8, fontStyle: 'italic' }]}>
-                  [...continúa · {sec.palabras_count?.toLocaleString()} palabras en total]
-                </Text>
-              )}
-            </View>
+            <Text style={[T.contentText, { color: t.textMuted }]}>{cleanedContent}</Text>
             <PageFooter />
           </Page>
         )

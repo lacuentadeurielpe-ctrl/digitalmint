@@ -30,13 +30,14 @@ export default function ExportButtons({ productId, isComplete, nombreProducto, s
   const [showCustomizer, setShowCustomizer] = useState(false)
 
   const [config, setConfig] = useState({
-    title:       nombreProducto ?? '',
-    subtitle:    subtitulo ?? '',
-    footer:      '',
-    theme:       'dark' as PdfTheme,
-    showAvatar:  true,
-    showScripts: true,
-    showGanchos: true,
+    title:              nombreProducto ?? '',
+    subtitle:           subtitulo ?? '',
+    footer:             '',
+    theme:              'dark' as PdfTheme,
+    showTransformation: false,
+    showAvatar:         false,
+    showScripts:        false,
+    showGanchos:        false,
   })
 
   async function downloadPDF() {
@@ -44,12 +45,13 @@ export default function ExportButtons({ productId, isComplete, nombreProducto, s
     try {
       const params = new URLSearchParams()
       params.set('theme', config.theme)
-      if (config.footer.trim())    params.set('footer',   config.footer.trim())
-      if (config.title.trim())     params.set('title',    config.title.trim())
-      if (config.subtitle.trim())  params.set('subtitle', config.subtitle.trim())
-      if (!config.showAvatar)  params.set('avatar',  '0')
-      if (!config.showScripts) params.set('scripts', '0')
-      if (!config.showGanchos) params.set('ganchos', '0')
+      if (config.footer.trim())          params.set('footer',         config.footer.trim())
+      if (config.title.trim())           params.set('title',          config.title.trim())
+      if (config.subtitle.trim())        params.set('subtitle',       config.subtitle.trim())
+      if (config.showTransformation)     params.set('transformation', '1')
+      if (config.showAvatar)             params.set('avatar',         '1')
+      if (config.showScripts)            params.set('scripts',        '1')
+      if (config.showGanchos)            params.set('ganchos',        '1')
 
       const res = await fetch(`/api/exports/pdf/${productId}?${params}`)
       if (!res.ok) throw new Error()
@@ -93,7 +95,7 @@ export default function ExportButtons({ productId, isComplete, nombreProducto, s
 
   if (!isComplete) return null
 
-  const toggle = (key: 'showAvatar' | 'showScripts' | 'showGanchos') =>
+  const toggle = (key: 'showTransformation' | 'showAvatar' | 'showScripts' | 'showGanchos') =>
     setConfig(c => ({ ...c, [key]: !c[key] }))
 
   return (
@@ -248,10 +250,11 @@ export default function ExportButtons({ productId, isComplete, nombreProducto, s
             <label className="text-xs text-slate-500 mb-2 block">Secciones a incluir</label>
             <div className="flex flex-wrap gap-3">
               {([
-                { key: 'showAvatar',  label: '👤 Avatar del cliente' },
-                { key: 'showScripts', label: '💬 Scripts WhatsApp' },
-                { key: 'showGanchos', label: '📱 Ganchos Facebook' },
-              ] as { key: 'showAvatar' | 'showScripts' | 'showGanchos'; label: string }[]).map(({ key, label }) => (
+                { key: 'showTransformation', label: '🔄 Transformación (Antes/Después)' },
+                { key: 'showAvatar',         label: '👤 Avatar del cliente' },
+                { key: 'showScripts',        label: '💬 Scripts WhatsApp' },
+                { key: 'showGanchos',        label: '📱 Ganchos Facebook' },
+              ] as { key: 'showTransformation' | 'showAvatar' | 'showScripts' | 'showGanchos'; label: string }[]).map(({ key, label }) => (
                 <button
                   key={key}
                   onClick={() => toggle(key)}

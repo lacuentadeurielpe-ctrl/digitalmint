@@ -39,9 +39,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const footerText  = url.searchParams.get('footer')   ?? undefined
   const customTitle = url.searchParams.get('title')    ?? undefined
   const customSub   = url.searchParams.get('subtitle') ?? undefined
-  const showAvatar  = url.searchParams.get('avatar')  !== '0'
-  const showScripts = url.searchParams.get('scripts') !== '0'
-  const showGanchos = url.searchParams.get('ganchos') !== '0'
+  const showTransformation = url.searchParams.get('transformation') === '1'
+  const showAvatar         = url.searchParams.get('avatar')         === '1'
+  const showScripts        = url.searchParams.get('scripts')        === '1'
+  const showGanchos        = url.searchParams.get('ganchos')        === '1'
 
   await admin.from('product_exports').insert({
     product_id: p.id,
@@ -67,6 +68,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     footerText,
     customTitle,
     customSubtitle: customSub,
+    showTransformation,
     showAvatar,
     showScripts,
     showGanchos,
