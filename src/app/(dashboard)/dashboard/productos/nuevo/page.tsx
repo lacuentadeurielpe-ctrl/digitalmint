@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AgentProgress from '@/components/productos/AgentProgress'
 
 const EJEMPLOS = [
@@ -29,8 +29,17 @@ async function runAgente(productId: string, agente: number): Promise<{ ok: boole
 }
 
 export default function NuevoProductoPage() {
+  return (
+    <Suspense fallback={null}>
+      <NuevoProductoForm />
+    </Suspense>
+  )
+}
+
+function NuevoProductoForm() {
   const router = useRouter()
-  const [idea, setIdea] = useState('')
+  const searchParams = useSearchParams()
+  const [idea, setIdea] = useState(decodeURIComponent(searchParams.get('idea') ?? ''))
   const [phase, setPhase] = useState<'form' | 'generating'>('form')
   const [agentStates, setAgentStates] = useState<AgentState[]>(
     Array(TOTAL_AGENTS).fill('waiting') as AgentState[]
