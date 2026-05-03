@@ -1,4 +1,4 @@
-import { deepseekJSON, deepseekText } from './deepseek'
+import { deepseekText } from './deepseek'
 import type { InvestigadorOutput } from './investigador'
 import type { EstrategaOutput } from './estratega'
 
@@ -20,25 +20,63 @@ export interface ArquitectoOutput {
   total_palabras_estimado: number
 }
 
-// ── STEP 1: Bible como texto libre (sin JSON — nunca falla por escaping) ──
-const BIBLE_SYSTEM = `Eres el arquitecto jefe de productos digitales. Tu tarea es escribir la BIBLIA de un producto digital.
+function extract(raw: string, tag: string): string {
+  const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i')
+  const match = raw.match(regex)
+  return match ? match[1].trim() : ''
+}
 
-La Biblia es un documento de contexto compartido de 1500-2000 palabras que todos los escritores del equipo leeran para mantener coherencia. Escribe en espanol claro. No uses comillas dobles dentro del texto.
+function extractInt(raw: string, tag: string, fallback: number): number {
+  const val = extract(raw, tag)
+  const n = parseInt(val.replace(/\D/g, ''), 10)
+  return isNaN(n) ? fallback : n
+}
 
-La Biblia debe contener:
-1. IDENTIDAD DEL PRODUCTO — nombre, proposito central, que lo hace unico
-2. LA GRAN PROMESA — transformacion antes/despues, resultado concreto
-3. PERFIL DEL AVATAR — quien es, que siente, que quiere, que le preocupa
-4. EL SISTEMA/METODO — el marco metodologico propio del producto (dale un nombre unico)
-5. VOCABULARIO CLAVE — 8-12 terminos que se usaran consistentemente en todo el producto
-6. TONO Y ESTILO — como hablar al lector (formal/informal, tu/usted, nivel tecnico)
-7. LAS 5 VERDADES FUNDAMENTALES — los principios que el producto defiende
-8. EL CAMINO DEL LECTOR — como progresa desde el inicio hasta la transformacion
+function parseSecciones(raw: string): SeccionBrief[] {
+  const seccionRegex = /\[SECCION\]([\s\S]*?)\[\/SECCION\]/gi
+  const secciones: SeccionBrief[] = []
+  let match: RegExpExecArray | null
 
-Devuelve SOLO el texto de la Biblia, sin titulos extra, sin markdown de encabezados, solo el contenido.`
+  while ((match = seccionRegex.exec(raw)) !== null) {
+    const block = match[1]
 
-// ── STEP 2: Briefs de secciones como JSON limpio (sin Bible adentro) ──
-const BRIEFS_SYSTEM = `Eres el arquitecto jefe de productos digitales. Disenias la estructura perfecta del producto.
+    const getField = (key: string): string => {
+      const m = block.match(new RegExp(`^${key}=(.+)$`, 'm'))
+      return m ? m[1].trim() : ''
+    }
+
+    const orden = parseInt(getField('orden') || '0', 10)
+    const titulo = getField('titulo')
+    if (!titulo || orden === 0) continue
+
+    const tipoRaw = getField('tipo').toLowerCase() as SeccionBrief['tipo_seccion']
+    const tiposValidos: SeccionBrief['tipo_seccion'][] = ['intro', 'capitulo', 'modulo', 'leccion', 'seccion', 'plantilla', 'bonus', 'conclusion']
+    const tipo_seccion = tiposValidos.includes(tipoRaw) ? tipoRaw : 'capitulo'
+
+    const puntosRaw = getField('puntos')
+    const puntos_clave = puntosRaw ? puntosRaw.split('|').map(p => p.trim()).filter(Boolean) : []
+
+    const palabras = parseInt(getField('palabras') || '2000', 10)
+    const esPareto = getField('pareto').toLowerCase() === 'true'
+    const brief = getField('brief')
+
+    secciones.push({
+      orden,
+      tipo_seccion,
+      titulo,
+      brief: brief || `Contenido completo para ${titulo}`,
+      palabras_objetivo: isNaN(palabras) ? 2000 : palabras,
+      puntos_clave: puntos_clave.length ? puntos_clave : ['desarrollo del tema', 'ejemplos practicos', 'ejercicios de aplicacion'],
+      es_pareto: esPareto,
+    })
+  }
+
+  return secciones.sort((a, b) => a.orden - b.orden)
+}
+
+const SYSTEM_PROMPT = `Eres el arquitecto jefe de productos digitales hispanohablantes. Diseñas la estructura y escribes la Biblia del producto.
+
+Devuelve UNICAMENTE el formato de etiquetas indicado, sin ningun texto adicional, sin explicaciones, sin markdown, sin JSON.
 
 TIPOS DE PRODUCTO y su estructura tipica:
 - ebook: 8-10 capitulos de 1500-2500 palabras c/u
@@ -47,29 +85,8 @@ TIPOS DE PRODUCTO y su estructura tipica:
 - template pack: 4-6 plantillas con guias de 800-1500 palabras c/u
 - workshop: 4-5 sesiones de 2000-2500 palabras c/u
 
-REGLAS CRITICAS para el JSON:
-- Los valores de "brief" y "titulo" NO pueden contener comillas dobles (usa comillas simples o reformula)
-- Los "puntos_clave" son frases cortas de maximo 10 palabras cada una
-- El brief de cada seccion es de 100-150 palabras maximo
-- Devuelve SOLO el JSON, sin texto adicional, sin markdown
-
-Devuelve exactamente este schema:
-{
-  "tipo_producto": "string",
-  "estructura_descripcion": "string de maximo 2 oraciones",
-  "total_palabras_estimado": 20000,
-  "secciones": [
-    {
-      "orden": 1,
-      "tipo_seccion": "capitulo",
-      "titulo": "Titulo sin comillas dobles",
-      "brief": "Descripcion de 100-150 palabras de que cubre esta seccion. Sin comillas dobles.",
-      "palabras_objetivo": 2000,
-      "puntos_clave": ["punto uno", "punto dos", "punto tres"],
-      "es_pareto": false
-    }
-  ]
-}`
+La BIBLIA es un documento de 1500-2000 palabras que todos los escritores leeran. Debe contener:
+identidad del producto, la gran promesa, perfil del avatar, el metodo propio (con nombre unico), vocabulario clave, tono y estilo, 5 verdades fundamentales, camino del lector.`
 
 export async function runArquitecto(
   idea: string,
@@ -87,30 +104,64 @@ OBJECIONES: ${estratega.avatar.objeciones.join(', ')}
 JTBD: ${investigador.jtbd}
 DIFERENCIADORES: ${investigador.diferenciadores_posibles.join(', ')}`
 
-  // Dos llamadas separadas — Bible como texto puro, briefs como JSON simple
-  const [bible, briefs] = await Promise.all([
-    deepseekText(
-      BIBLE_SYSTEM,
-      `${contexto}\n\nEscribe la Biblia completa del producto (1500-2000 palabras):`,
-      3000
-    ),
-    deepseekJSON<Omit<ArquitectoOutput, 'bible'>>(
-      BRIEFS_SYSTEM,
-      `${contexto}\n\nDiseña la estructura completa con briefs por seccion. Devuelve SOLO el JSON:`,
-      4000
-    ),
-  ])
+  const userContent = `${contexto}
 
-  // Validate secciones — if empty or malformed, create a basic fallback
-  const secciones = Array.isArray(briefs.secciones) && briefs.secciones.length > 0
-    ? briefs.secciones
-    : generateFallbackSecciones(estratega.tipo_producto)
+Devuelve EXACTAMENTE en este formato (sin texto extra, solo etiquetas):
+
+[TIPO_PRODUCTO]${estratega.tipo_producto}[/TIPO_PRODUCTO]
+[DESCRIPCION]descripcion de la estructura en 1-2 oraciones[/DESCRIPCION]
+[TOTAL_PALABRAS]20000[/TOTAL_PALABRAS]
+
+(Una etiqueta SECCION por cada seccion del producto. Minimo 6, maximo 12.)
+
+[SECCION]
+orden=1
+tipo=capitulo
+pareto=false
+palabras=2000
+titulo=Titulo de la primera seccion sin comillas
+brief=Descripcion de 80-120 palabras de que cubre esta seccion. Sin caracteres especiales. Solo texto plano.
+puntos=punto clave uno|punto clave dos|punto clave tres
+[/SECCION]
+
+[SECCION]
+orden=2
+tipo=capitulo
+pareto=true
+palabras=2500
+titulo=Titulo de la segunda seccion
+brief=Descripcion de 80-120 palabras. Esta es la seccion mas importante del producto.
+puntos=punto uno|punto dos|punto tres|punto cuatro
+[/SECCION]
+
+(continua con todas las secciones del producto...)
+
+[BIBLE]
+Escribe aqui la Biblia completa del producto (1500-2000 palabras).
+
+IDENTIDAD DEL PRODUCTO: nombre, proposito central, que lo hace unico.
+LA GRAN PROMESA: transformacion antes/despues, resultado concreto.
+PERFIL DEL AVATAR: quien es, que siente, que quiere, que le preocupa.
+EL SISTEMA/METODO: el marco metodologico propio (dale un nombre unico).
+VOCABULARIO CLAVE: 8-12 terminos que se usaran consistentemente.
+TONO Y ESTILO: como hablar al lector.
+LAS 5 VERDADES FUNDAMENTALES: principios que el producto defiende.
+EL CAMINO DEL LECTOR: como progresa desde el inicio hasta la transformacion.
+[/BIBLE]`
+
+  const raw = await deepseekText(SYSTEM_PROMPT, userContent, 6000)
+
+  const secciones = parseSecciones(raw)
+  const bible = extract(raw, 'BIBLE')
+  const tipo_producto = extract(raw, 'TIPO_PRODUCTO') || estratega.tipo_producto
+  const descripcion = extract(raw, 'DESCRIPCION') || 'Producto digital estructurado en modulos progresivos.'
+  const total_palabras = extractInt(raw, 'TOTAL_PALABRAS', 18000)
 
   return {
-    tipo_producto: briefs.tipo_producto || estratega.tipo_producto,
-    estructura_descripcion: briefs.estructura_descripcion || 'Producto digital estructurado en modulos progresivos.',
-    total_palabras_estimado: briefs.total_palabras_estimado || 18000,
-    secciones,
+    tipo_producto,
+    estructura_descripcion: descripcion,
+    total_palabras_estimado: total_palabras,
+    secciones: secciones.length > 0 ? secciones : generateFallbackSecciones(estratega.tipo_producto),
     bible: bible || `Producto: ${estratega.nombre_producto}. Promesa: ${estratega.promesa_after}`,
   }
 }
