@@ -57,15 +57,28 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
 
   if (!raw) notFound()
   const p = raw as unknown as ProductRow
+  const admin = createAdminClient()
 
   if (p.status !== 'complete') {
+    const isStuck = p.status === 'generating'
+    if (isStuck) {
+      await admin.from('products').update({ status: 'failed' }).eq('id', p.id)
+    }
     return (
       <div className="p-8 flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="text-4xl mb-3">⏳</div>
-          <p className="text-white font-semibold">Este producto aún se está generando</p>
-          <a href="/dashboard/productos" className="text-purple-400 text-sm hover:underline mt-2 block">
-            ← Volver a mis productos
+          <div className="text-4xl mb-3">{isStuck ? '⚠️' : '❌'}</div>
+          <p className="text-white font-semibold">
+            {isStuck ? 'La generación se interrumpió' : 'Este producto falló'}
+          </p>
+          <p className="text-slate-400 text-sm mt-1 mb-3">
+            {isStuck ? 'Ya puedes reintentarlo desde Mis Productos.' : 'Usa Reintentar generación desde la lista.'}
+          </p>
+          <a
+            href="/dashboard/productos"
+            className="inline-block px-4 py-2 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-300 hover:bg-purple-500/30 transition text-sm font-medium"
+          >
+            ← Ir a Mis Productos y reintentar
           </a>
         </div>
       </div>
@@ -73,7 +86,6 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
   }
 
   // Fetch product content sections
-  const admin = createAdminClient()
   const { data: contenido } = await admin
     .from('producto_contenido')
     .select('id, orden, tipo_seccion, titulo, contenido, palabras_count')
