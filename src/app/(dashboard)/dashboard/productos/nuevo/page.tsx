@@ -45,6 +45,16 @@ function NuevoProductoForm() {
     Array(TOTAL_AGENTS).fill('waiting') as AgentState[]
   )
   const [error, setError] = useState('')
+  const [currentProductId, setCurrentProductId] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
+
+  async function handleCancel() {
+    setIsCancelling(true)
+    if (currentProductId) {
+      try { await fetch(`/api/productos/${currentProductId}`, { method: 'DELETE' }) } catch {}
+    }
+    router.push('/dashboard/productos')
+  }
 
   function setAgentRunning(i: number) {
     setAgentStates(prev => { const s = [...prev] as AgentState[]; s[i] = 'running'; return s })
@@ -72,6 +82,7 @@ function NuevoProductoForm() {
       return
     }
     const { productId } = await res.json()
+    setCurrentProductId(productId)
 
     try {
       // Critical agents 1-4 — must succeed (Agent 4 marks product as 'complete')
@@ -119,6 +130,18 @@ function NuevoProductoForm() {
         <p className="text-center text-xs text-slate-600 mt-6">
           No cierres esta pestaña — el Agente Escritores genera el contenido completo en paralelo
         </p>
+
+        <div className="mt-8 text-center">
+          <button
+            onClick={handleCancel}
+            disabled={isCancelling}
+            className="text-xs text-slate-600 hover:text-red-400 transition disabled:opacity-50"
+          >
+            {isCancelling
+              ? <span className="flex items-center gap-1.5 justify-center"><span className="w-3 h-3 border border-slate-600 border-t-red-400 rounded-full animate-spin" /> Cancelando...</span>
+              : '✕ Cancelar y eliminar este intento'}
+          </button>
+        </div>
       </div>
     )
   }

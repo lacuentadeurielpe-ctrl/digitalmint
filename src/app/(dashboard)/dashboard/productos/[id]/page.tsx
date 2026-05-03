@@ -5,6 +5,7 @@ import { formatUSD } from '@/lib/utils'
 import type { AvatarCliente, EstructuraProducto, EstrategiaPrecio, ProductStatus } from '@/lib/supabase/types'
 import CopyButton from '@/components/productos/CopyButton'
 import ExportButtons from '@/components/productos/ExportButtons'
+import DeleteProductButton from '@/components/productos/DeleteProductButton'
 
 type ProductRow = {
   id: string
@@ -311,6 +312,11 @@ export default async function ProductoDetailPage({ params }: { params: { id: str
           </div>
         </Section>
       )}
+
+      {/* Danger zone */}
+      <div className="mt-12 pt-6 border-t border-white/5">
+        <DeleteProductButton productId={p.id} />
+      </div>
     </div>
   )
 }

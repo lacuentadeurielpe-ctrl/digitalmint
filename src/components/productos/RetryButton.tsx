@@ -25,6 +25,8 @@ export default function RetryButton({ productId }: Props) {
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(0)
   const [err, setErr] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function handleRetry(e: React.MouseEvent) {
     e.preventDefault()
@@ -33,28 +35,35 @@ export default function RetryButton({ productId }: Props) {
     setErr('')
     setProgress(0)
     try {
-      // Agents 1-4 are critical (must succeed)
       for (let agente = 1; agente <= 4; agente++) {
         setProgress(agente - 1)
         await runAgente(productId, agente)
         setProgress(agente)
       }
-      // Agents 5, 6, 7 are bonus — failure is not fatal
       for (let agente = 5; agente <= 7; agente++) {
         setProgress(agente - 1)
-        try {
-          await runAgente(productId, agente)
-        } catch (bonusErr) {
-          console.warn(`Agente ${agente} (bonus) falló pero el producto está completo:`, bonusErr)
-        }
+        try { await runAgente(productId, agente) } catch {}
         setProgress(agente)
       }
       router.push(`/dashboard/productos/${productId}`)
       router.refresh()
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error'
-      setErr(msg)
+      setErr(error instanceof Error ? error.message : 'Error')
       setRunning(false)
+    }
+  }
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeleting(true)
+    try {
+      await fetch(`/api/productos/${productId}`, { method: 'DELETE' })
+      router.push('/dashboard/productos')
+      router.refresh()
+    } catch {
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -73,14 +82,44 @@ export default function RetryButton({ productId }: Props) {
   }
 
   return (
-    <div className="mt-3">
-      {err && <p className="text-xs text-red-400 mb-1 truncate">{err}</p>}
-      <button
-        onClick={handleRetry}
-        className="text-xs px-3 py-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/30 transition font-medium"
-      >
-        🔄 Reintentar generación
-      </button>
+    <div className="mt-3 space-y-2">
+      {err && <p className="text-xs text-red-400 truncate">{err}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleRetry}
+          className="flex-1 text-xs px-3 py-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/30 transition font-medium"
+        >
+          🔄 Reintentar
+        </button>
+
+        {!confirmDelete ? (
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(true) }}
+            className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-slate-500 hover:border-red-500/40 hover:text-red-400 transition"
+          >
+            🗑
+          </button>
+        ) : (
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition font-medium disabled:opacity-50"
+            >
+              {deleting
+                ? <span className="w-3 h-3 border border-red-400/30 border-t-red-400 rounded-full animate-spin inline-block" />
+                : 'Eliminar'}
+            </button>
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(false) }}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-slate-400 hover:text-white transition"
+            >
+              No
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
