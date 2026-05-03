@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { extractJson } from './utils'
 
 export function createDeepSeek() {
   return new OpenAI({
@@ -24,7 +25,7 @@ export async function deepseekJSON<T>(
     ],
   })
   const raw = response.choices[0].message.content ?? '{}'
-  return JSON.parse(raw) as T
+  return extractJson<T>(raw)
 }
 
 export async function deepseekText(

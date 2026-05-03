@@ -9,61 +9,67 @@ export interface SeccionEscrita {
   palabras_count: number
 }
 
-const WRITER_SYSTEM = `Eres un escritor experto en productos digitales hispanohablantes. Escribes contenido de alta calidad que transforma, educa y conecta emocionalmente.
+const WRITER_SYSTEM = `Eres un escritor experto en productos digitales hispanohablantes. Escribes contenido de alta calidad que transforma, educa y conecta emocionalmente con el lector.
 
-REGLAS DE ESCRITURA:
-- Escribe en segunda persona (tu/usted) o primera persona plural (nosotros)
-- Sigue EXACTAMENTE el brief y los puntos clave asignados
-- Mantiene el tono y vocabulario de la Biblia del producto
-- Usa analogias, ejemplos concretos y ejercicios practicos cuando aplica
-- Estructura con headers markdown (## para subsecciones, ### para sub-subsecciones)
-- Incluye al menos 1 ejercicio o accion practica por seccion cuando corresponda
-- Usa listas, bullets y tablas para romper el texto y facilitar la lectura
-- El contenido debe ser COMPLETO, no un resumen — desarrolla cada punto con profundidad
-- Escribe en espanol hispanohablante neutro
+REGLAS:
+- Sigue exactamente el brief y los puntos clave asignados
+- Usa el vocabulario y tono definidos en la Biblia del producto
+- Escribe en segunda persona (tu) o primera persona plural segun el tono indicado
+- Incluye ejemplos concretos, analogias y ejercicios practicos
+- Usa subtitulos con ## para organizar el contenido
+- El contenido debe ser COMPLETO y profundo, no un resumen
+- Escribe en espanol neutro hispanohablante
+- No uses comillas dobles dentro del texto
 
-FORMATO DE SALIDA:
-Devuelve SOLO el contenido en markdown, comenzando con ## [titulo de subseccion]. No incluyas el titulo principal de la seccion (ya existe), ni meta-comentarios, ni frases de introduccion como "En esta seccion..."`
+FORMATO:
+Devuelve SOLO el contenido en markdown. No incluyas el titulo principal (ya existe), ni comentarios meta, ni frases como "En esta seccion vamos a..."`
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length
 }
 
-async function writeSeccion(
+async function writeSeccionWithRetry(
   bible: string,
   seccion: SeccionBrief,
   nombreProducto: string,
-  subtitulo: string
+  subtitulo: string,
+  attempt = 0
 ): Promise<SeccionEscrita> {
-  const userContent = `BIBLIA DEL PRODUCTO (contexto compartido — lee con atencion):
-${bible}
+  // Truncate bible to keep within token budget (first 1500 words ~2000 tokens)
+  const biblePreview = bible.split(/\s+/).slice(0, 1500).join(' ')
 
+  const userContent = `BIBLIA DEL PRODUCTO (lee con atencion para mantener coherencia):
+---
+${biblePreview}
 ---
 
-PRODUCTO: ${nombreProducto}
-SUBTITULO: ${subtitulo}
+PRODUCTO: ${nombreProducto} — ${subtitulo}
 
-TU ASIGNACION:
-Seccion: ${seccion.titulo}
-Tipo: ${seccion.tipo_seccion}
-Objetivo: ${seccion.palabras_objetivo} palabras
-${seccion.es_pareto ? '⭐ ESTA ES LA SECCION PARETO — el nucleo del producto, maximo esfuerzo y detalle' : ''}
+TU SECCION ASIGNADA: ${seccion.titulo}
+TIPO: ${seccion.tipo_seccion}
+OBJETIVO: ${seccion.palabras_objetivo} palabras minimo
+${seccion.es_pareto ? 'ATENCION: Esta es la seccion mas importante del producto. Maximo detalle y profundidad.' : ''}
 
-BRIEF (que debes escribir):
+QUE DEBE CONTENER (brief):
 ${seccion.brief}
 
-PUNTOS CLAVE A CUBRIR (obligatorios):
+PUNTOS CLAVE OBLIGATORIOS:
 ${seccion.puntos_clave.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
-Escribe la seccion completa con al menos ${seccion.palabras_objetivo} palabras. Desarrolla cada punto con profundidad, ejemplos y ejercicios practicos.`
+Escribe el contenido completo. Desarrolla cada punto con profundidad, ejemplos reales y ejercicios practicos. Minimo ${seccion.palabras_objetivo} palabras.`
 
   const contenido = await deepseekText(WRITER_SYSTEM, userContent, 5000)
+
+  // If content is too short (LLM truncated), retry once with a shorter target
+  if (countWords(contenido) < 500 && attempt === 0) {
+    return writeSeccionWithRetry(bible, seccion, nombreProducto, subtitulo, 1)
+  }
 
   return {
     orden: seccion.orden,
     tipo_seccion: seccion.tipo_seccion,
     titulo: seccion.titulo,
-    contenido,
+    contenido: contenido || `## ${seccion.titulo}\n\n${seccion.brief}\n\n${seccion.puntos_clave.join('\n\n')}`,
     palabras_count: countWords(contenido),
   }
 }
@@ -74,10 +80,46 @@ export async function runEscritores(
   nombreProducto: string,
   subtitulo: string
 ): Promise<SeccionEscrita[]> {
-  // Run all section writers in parallel
-  const promises = secciones.map(sec =>
-    writeSeccion(bible, sec, nombreProducto, subtitulo)
+  if (!secciones || secciones.length === 0) {
+    throw new Error('El Arquitecto no generó secciones válidas')
+  }
+
+  // Run all writers in parallel — use allSettled so one failure doesn't kill all
+  const results = await Promise.allSettled(
+    secciones.map(sec =>
+      writeSeccionWithRetry(bible, sec, nombreProducto, subtitulo)
+    )
   )
-  const results = await Promise.all(promises)
-  return results.sort((a, b) => a.orden - b.orden)
+
+  const written: SeccionEscrita[] = []
+  const failed: string[] = []
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      written.push(result.value)
+    } else {
+      failed.push(result.reason?.message ?? 'Error desconocido')
+    }
+  }
+
+  // If more than half failed, throw to trigger a full retry
+  if (written.length < secciones.length / 2) {
+    throw new Error(`Demasiadas secciones fallaron (${failed.length}/${secciones.length}). Errores: ${failed.slice(0, 2).join(', ')}`)
+  }
+
+  // For individual failures — create a placeholder so product is still usable
+  const allSections = [...written]
+  for (const sec of secciones) {
+    if (!written.find(w => w.orden === sec.orden)) {
+      allSections.push({
+        orden: sec.orden,
+        tipo_seccion: sec.tipo_seccion,
+        titulo: sec.titulo,
+        contenido: `## ${sec.titulo}\n\n${sec.brief}\n\n**Puntos clave:**\n${sec.puntos_clave.map(p => `- ${p}`).join('\n')}`,
+        palabras_count: countWords(sec.brief),
+      })
+    }
+  }
+
+  return allSections.sort((a, b) => a.orden - b.orden)
 }
