@@ -1,35 +1,65 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { Suspense } from 'react'
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter()
+  const params = useSearchParams()
+  const needsConfirm = params.get('confirm') === '1'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  if (needsConfirm) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
+        <div className="w-full max-w-md px-8 py-10 bg-white/5 backdrop-blur border border-white/10 rounded-2xl shadow-2xl text-center">
+          <div className="text-4xl mb-4">📧</div>
+          <h2 className="text-xl font-bold text-white mb-2">Revisa tu email</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Te enviamos un link de confirmación. Haz click en él para activar tu cuenta y acceder al dashboard.
+          </p>
+          <Link href="/login" className="text-purple-400 text-sm hover:underline">
+            Ya confirmé → Iniciar sesión
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
     })
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+      return
     }
+    // Si el email necesita confirmación, mostrar mensaje en lugar de redirigir
+    if (data.user && !data.session) {
+      setError('')
+      setLoading(false)
+      router.push('/register?confirm=1')
+      return
+    }
+    router.push('/dashboard')
+    router.refresh()
   }
 
   return (
@@ -95,5 +125,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   )
 }

@@ -13,13 +13,32 @@ const EJEMPLOS = [
 
 type AgentState = 'waiting' | 'running' | 'done'
 
+async function runAgente(productId: string, agente: number): Promise<{ ok: boolean; next: number | null }> {
+  const res = await fetch('/api/productos/agente', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId, agente }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `Agente ${agente} falló`)
+  }
+  return res.json()
+}
+
 export default function NuevoProductoPage() {
   const router = useRouter()
   const [idea, setIdea] = useState('')
   const [phase, setPhase] = useState<'form' | 'generating'>('form')
   const [agentStates, setAgentStates] = useState<AgentState[]>(['waiting', 'waiting', 'waiting', 'waiting'])
-  const [currentAgent, setCurrentAgent] = useState(0)
   const [error, setError] = useState('')
+
+  function setAgentRunning(i: number) {
+    setAgentStates(prev => { const s = [...prev] as AgentState[]; s[i] = 'running'; return s })
+  }
+  function setAgentDone(i: number) {
+    setAgentStates(prev => { const s = [...prev] as AgentState[]; s[i] = 'done'; return s })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,61 +46,33 @@ export default function NuevoProductoPage() {
 
     setPhase('generating')
     setError('')
+    setAgentStates(['waiting', 'waiting', 'waiting', 'waiting'])
 
-    // 1. Crear el producto en DB
+    // 1. Crear producto en DB
     const res = await fetch('/api/productos/generar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idea: idea.trim() }),
     })
-
     if (!res.ok) {
-      setError('Error al iniciar la generación. Intenta de nuevo.')
+      setError('Error al iniciar. Verifica tu sesión e intenta de nuevo.')
       setPhase('form')
       return
     }
-
     const { productId } = await res.json()
 
-    // 2. Conectar al SSE stream
-    const eventSource = new EventSource(`/api/productos/stream/${productId}`)
-
-    eventSource.addEventListener('agent_start', (e) => {
-      const data = JSON.parse(e.data)
-      const agentIdx = data.agent - 1
-      setCurrentAgent(data.agent)
-      setAgentStates(prev => {
-        const next = [...prev] as AgentState[]
-        next[agentIdx] = 'running'
-        return next
-      })
-    })
-
-    eventSource.addEventListener('agent_done', (e) => {
-      const data = JSON.parse(e.data)
-      const agentIdx = data.agent - 1
-      setAgentStates(prev => {
-        const next = [...prev] as AgentState[]
-        next[agentIdx] = 'done'
-        return next
-      })
-    })
-
-    eventSource.addEventListener('complete', () => {
-      eventSource.close()
+    // 2. Correr los 4 agentes en secuencia desde el cliente
+    // Cada llamada tiene su propio timeout de 60s en Vercel
+    try {
+      for (let agente = 1; agente <= 4; agente++) {
+        setAgentRunning(agente - 1)
+        await runAgente(productId, agente)
+        setAgentDone(agente - 1)
+      }
       router.push(`/dashboard/productos/${productId}`)
-    })
-
-    eventSource.addEventListener('error', (e) => {
-      eventSource.close()
-      const data = JSON.parse((e as MessageEvent).data ?? '{}')
-      setError(data.message ?? 'Ocurrió un error durante la generación')
-      setPhase('form')
-    })
-
-    eventSource.onerror = () => {
-      eventSource.close()
-      setError('Conexión perdida. Verifica tu internet e intenta de nuevo.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido'
+      setError(`Falló durante la generación: ${msg}. Puedes reintentar desde "Mis productos".`)
       setPhase('form')
     }
   }
