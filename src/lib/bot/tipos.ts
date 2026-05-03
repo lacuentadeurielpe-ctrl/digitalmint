@@ -82,6 +82,8 @@ export interface ContextoAgente {
   pausado: boolean
   nombreCliente: string | null
   historial: MensajeBot[]
+  resumenContexto: string | null       // compaction de mensajes viejos
+  perfilCliente: Record<string, unknown> // perfil aprendido del cliente
   mensaje: string
   tipoMensaje: 'text' | 'image' | 'audio' | 'otro'
   imagenUrl?: string

@@ -3,13 +3,15 @@ import { clasificar } from './clasificador'
 import { ejecutarAgenteVentas } from './agente-ventas'
 import { ejecutarAgentePagos } from './agente-pagos'
 import { ejecutarAgenteCRM } from './agente-crm'
+import { aplicarCompaction } from './compaction'
+import { inferirYActualizarPerfil, cargarPerfil } from './memoria'
 import type {
   EstadoConversacion, AgenteActual, MensajeBot,
   InventarioItem, ConfigBot, ContextoAgente, ProductoBot,
 } from './tipos'
 
 export async function procesarMensaje(params: {
-  clientePhone: string   // incluye '+' o sin él, normalizado aquí
+  clientePhone: string
   botPhone: string
   userId: string
   mensaje: string
@@ -23,7 +25,7 @@ export async function procesarMensaje(params: {
   const [convRes, settingsRes, invRes] = await Promise.all([
     admin
       .from('bot_conversations')
-      .select('id, mensajes, estado, agente_actual, inventario_id, pausado, nombre_cliente')
+      .select('id, mensajes, estado, agente_actual, inventario_id, pausado, nombre_cliente, resumen_contexto, perfil_cliente')
       .eq('user_id', params.userId)
       .eq('cliente_phone', clientePhoneNorm)
       .maybeSingle(),
@@ -76,7 +78,19 @@ export async function procesarMensaje(params: {
   }
 
   const estado = ((conv?.estado as EstadoConversacion) ?? 'nuevo')
-  const historial = ((conv?.mensajes ?? []) as MensajeBot[])
+  const historialCompleto = ((conv?.mensajes ?? []) as MensajeBot[])
+  const resumenPrevio = (conv as any)?.resumen_contexto ?? null
+  const perfilGuardado = (conv as any)?.perfil_cliente ?? {}
+
+  // ── Compaction: si historial > 15 mensajes, resumir los viejos ─────────────
+  const { mensajesRecientes: historial, resumen: resumenContexto } = conv?.id
+    ? await aplicarCompaction({
+        conversacionId: conv.id,
+        historial: historialCompleto,
+        resumenPrevio,
+      })
+    : { mensajesRecientes: historialCompleto, resumen: null }
+
   const invSeleccionado = conv?.inventario_id
     ? (inventario.find(i => i.id === conv.inventario_id) ?? null)
     : (inventario.length === 1 ? inventario[0] : null)
@@ -93,6 +107,8 @@ export async function procesarMensaje(params: {
     pausado: conv?.pausado ?? false,
     nombreCliente: conv?.nombre_cliente ?? null,
     historial,
+    resumenContexto,
+    perfilCliente: perfilGuardado,
     mensaje: params.mensaje,
     tipoMensaje: params.tipoMensaje,
     imagenUrl: params.imagenUrl,
@@ -113,9 +129,22 @@ export async function procesarMensaje(params: {
     resultado = await ejecutarAgenteVentas(ctx)
   }
 
+  // Si el agente no generó texto (e.g. auto-confirmación ya envió el mensaje), salir
+  if (!resultado.texto) return null
+
+  // ── Inferir y actualizar perfil del cliente (fire & forget) ────────────────
+  if (conv?.id) {
+    inferirYActualizarPerfil({
+      conversacionId: conv.id,
+      mensaje: params.mensaje,
+      productoNombre: invSeleccionado?.producto.nombre_producto ?? undefined,
+      estadoNuevo: resultado.nuevoEstado,
+    }).catch(() => {})
+  }
+
   // ── Actualizar historial y estado ──────────────────────────────────────────
   const nuevosMensajes: MensajeBot[] = [
-    ...historial.slice(-20),
+    ...historialCompleto.slice(-20),
     { role: 'user', content: params.mensaje, timestamp: new Date().toISOString() },
     { role: 'assistant', content: resultado.texto, timestamp: new Date().toISOString() },
   ]

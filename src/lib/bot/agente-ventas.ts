@@ -1,4 +1,5 @@
 import { deepseekText } from '@/lib/ai/deepseek'
+import { perfilATexto } from './memoria'
 import type { ContextoAgente, RespuestaAgente, EstadoConversacion } from './tipos'
 
 const RE_INTERES = /\b(s[íi]|claro|me\s+interesa|cu[eé]ntame|c[oó]mo|quiero\s+saber|cu[aá]nto|precio|de\s+qu[eé]\s+trata|m[aá]s\s+info)\b/i
@@ -48,6 +49,7 @@ export async function ejecutarAgenteVentas(ctx: ContextoAgente): Promise<Respues
     .map(m => `${m.role === 'user' ? 'Cliente' : 'Bot'}: ${m.content}`)
     .join('\n')
 
+  const perfilTexto = perfilATexto(ctx.perfilCliente as any)
   const nc = ctx.nombreCliente ? ctx.nombreCliente : null
 
   const instruccionPorEstado: Record<string, string> = {
@@ -100,9 +102,17 @@ ${v?.respuestas_objeciones?.map(o => `"${o.objecion}" → ${o.respuesta}`).join(
 6. Emojis: máximo 1-2 por mensaje.
 7. Responde SOLO el texto. Sin comillas. Sin explicaciones.`
 
-  const usuario = `Estado: ${ctx.estado}${nc ? ` | Cliente: ${nc}` : ''}
+  const resumenBloque = ctx.resumenContexto
+    ? `\n[RESUMEN DE CONVERSACIÓN ANTERIOR]\n${ctx.resumenContexto}\n[FIN RESUMEN]\n`
+    : ''
 
-Historial:
+  const perfilBloque = perfilTexto
+    ? `\n[PERFIL CONOCIDO DEL CLIENTE]\n${perfilTexto}\n`
+    : ''
+
+  const usuario = `Estado: ${ctx.estado}${nc ? ` | Cliente: ${nc}` : ''}
+${perfilBloque}${resumenBloque}
+Historial reciente:
 ${historialStr}
 
 Mensaje: "${ctx.mensaje}"
