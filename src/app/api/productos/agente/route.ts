@@ -181,23 +181,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, next: 6 })
     }
 
-    // ── AGENTE 6: Vendedor (Claude Sonnet) — WhatsApp Scripts ──
+    // ── AGENTE 6: Vendedor (DeepSeek) — WhatsApp Scripts ──
+    // Even if this fails, the product is still usable (sections 1-5 are the actual product)
     if (agente === 6) {
       await admin.from('products').update({ current_agent: 6 }).eq('id', productId)
-      const output = await runWithRetry(() =>
-        runVendedor(
-          product.investigador_output as InvestigadorOutput,
-          product.estratega_output as EstrategaOutput,
-          product.arquitecto_output as ArquitectoOutput
+      try {
+        const output = await runWithRetry(() =>
+          runVendedor(
+            product.investigador_output as InvestigadorOutput,
+            product.estratega_output as EstrategaOutput,
+            product.arquitecto_output as ArquitectoOutput
+          )
         )
-      )
-      await admin.from('products').update({
-        vendedor_output: output,
-        // Keep ganchos_redes for backward compat (use FB hooks)
-        ganchos_redes: output.ganchos_facebook,
-        status: 'complete',
-        current_agent: 6,
-      }).eq('id', productId)
+        await admin.from('products').update({
+          vendedor_output: output,
+          ganchos_redes: output.ganchos_facebook,
+          status: 'complete',
+          current_agent: 6,
+        }).eq('id', productId)
+      } catch (vendedorErr) {
+        console.error('[Agente 6] Vendedor falló, marcando producto como complete sin scripts:', vendedorErr)
+        await admin.from('products').update({
+          status: 'complete',
+          current_agent: 6,
+        }).eq('id', productId)
+      }
       return NextResponse.json({ ok: true, next: null })
     }
 
