@@ -65,9 +65,16 @@ export interface ConfigBot {
   plin_numero: string | null
   bcp_cuenta: string | null
   bcp_titular: string | null
+  bbva_cuenta: string | null
+  bbva_titular: string | null
+  interbank_cuenta: string | null
+  mercadopago_link: string | null
+  paypal_link: string | null
   bot_nombre: string
   bot_phone: string | null
   ycloud_api_key: string | null
+  moneda: string          // 'PEN' | 'USD' | 'ARS' | 'MXN' | 'COP' | 'CLP' | 'BRL'
+  simbolo_moneda: string  // 'S/' | '$' | 'AR$' | 'MX$' | etc.
 }
 
 export interface ContextoAgente {

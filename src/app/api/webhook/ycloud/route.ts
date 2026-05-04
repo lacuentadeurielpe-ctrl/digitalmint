@@ -53,7 +53,7 @@ export async function POST(req: Request) {
 
     const { data: settings } = await admin
       .from('user_settings')
-      .select('user_id, ycloud_api_key, bot_activo')
+      .select('user_id, ycloud_api_key, bot_activo, yape_numero, plin_numero, bcp_cuenta, bbva_cuenta, interbank_cuenta, mercadopago_link, paypal_link, simbolo_moneda, moneda')
       .eq('bot_phone', botPhone)
       .eq('bot_activo', true)
       .maybeSingle()
@@ -61,10 +61,22 @@ export async function POST(req: Request) {
     console.log('[wh] settings botPhone=' + botPhone + ' found=' + !!settings)
     if (!settings) return NextResponse.json({ ok: true })
 
-    const apiKey      = (settings.ycloud_api_key as string | null) ?? process.env.YCLOUD_API_KEY ?? ''
+    const s           = settings as any
+    const apiKey      = (s.ycloud_api_key as string | null) ?? process.env.YCLOUD_API_KEY ?? ''
     const botPlus     = `+${botPhone}`
     const clientePlus = `+${clientePhone}`
-    const userId      = settings.user_id as string
+    const userId      = s.user_id as string
+    const configPagos = {
+      yape_numero:      s.yape_numero,
+      plin_numero:      s.plin_numero,
+      bcp_cuenta:       s.bcp_cuenta,
+      bbva_cuenta:      s.bbva_cuenta,
+      interbank_cuenta: s.interbank_cuenta,
+      mercadopago_link: s.mercadopago_link,
+      paypal_link:      s.paypal_link,
+      simbolo_moneda:   s.simbolo_moneda ?? 'S/',
+      moneda:           s.moneda ?? 'PEN',
+    }
 
     // ── Procesar según tipo de mensaje ────────────────────────────────────────
     stage = 'media'
@@ -112,9 +124,9 @@ export async function POST(req: Request) {
         const media = await descargarMedia(mediaId, apiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
-          console.log('[wh] Vision tipo=' + analisis?.tipo)
+          console.log('[wh] Vision es_comprobante=' + analisis?.es_comprobante + ' metodo=' + analisis?.metodo + ' monto=' + analisis?.monto)
 
-          if (analisis?.tipo === 'comprobante_pago') {
+          if (analisis?.es_comprobante) {
             // ── Auto-confirmar pago ─────────────────────────────────────────
             stage = 'pago'
             const resultado = await procesarPagoDigital({
@@ -122,26 +134,23 @@ export async function POST(req: Request) {
               clientePhone: clientePlus,
               botPhone: botPlus,
               apiKey,
+              configPagos,
               datos: {
-                monto: analisis.pago?.monto ?? null,
-                metodo: analisis.pago?.metodo ?? null,
-                numero_operacion: analisis.pago?.numero_operacion ?? null,
+                monto: analisis.monto,
+                moneda: analisis.moneda,
+                metodo: analisis.metodo,
+                numero_operacion: analisis.numero_operacion,
+                destinatario_ultimos: analisis.destinatario_ultimos,
+                destinatario_nombre: analisis.destinatario_nombre,
                 comprobante_url: mediaId.startsWith('http') ? mediaId : null,
               },
             })
 
             console.log('[wh] pago ' + resultado.estado)
 
-            // Si no fue auto-confirmado, enviar mensaje al cliente
             if (resultado.estado !== 'confirmado_auto') {
-              await enviarTexto({
-                to: clientePlus,
-                text: resultado.mensajeCliente,
-                fromPhone: botPlus,
-                apiKey,
-              })
+              await enviarTexto({ to: clientePlus, text: resultado.mensajeCliente, fromPhone: botPlus, apiKey })
             }
-            // Si fue confirmado_auto, procesarPagoDigital ya envió el acceso
             return NextResponse.json({ ok: true })
           }
 

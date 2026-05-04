@@ -69,10 +69,16 @@ export default async function ConfiguracionPage() {
         </p>
         <PagosConfigClient
           userId={user!.id}
+          moneda={s?.moneda ?? 'PEN'}
           yapeNumero={s?.yape_numero ?? ''}
           plinNumero={s?.plin_numero ?? ''}
           bcpCuenta={s?.bcp_cuenta ?? ''}
           bcpTitular={s?.bcp_titular ?? ''}
+          bbvaCuenta={s?.bbva_cuenta ?? ''}
+          bbvaTitular={s?.bbva_titular ?? ''}
+          interbankCuenta={s?.interbank_cuenta ?? ''}
+          mercadopagoLink={s?.mercadopago_link ?? ''}
+          paypalLink={s?.paypal_link ?? ''}
           botNombre={s?.bot_nombre ?? ''}
         />
       </Section>

@@ -10,7 +10,8 @@ export async function ejecutarAgentePagos(ctx: ContextoAgente): Promise<Respuest
   const cfg = ctx.config
   const precio = inv.precio_venta
   const nombre = inv.producto.nombre_producto ?? 'el producto'
-  const nc = ctx.nombreCliente ? ` ${ctx.nombreCliente}` : ''
+  const nc  = ctx.nombreCliente ? ` ${ctx.nombreCliente}` : ''
+  const sim = cfg.simbolo_moneda ?? 'S/'
 
   // ── Comprobante recibido ────────────────────────────────────────────────────
   // Imagen ya fue procesada por el webhook (Vision) y llegó como texto con metadata.
@@ -26,9 +27,12 @@ export async function ejecutarAgentePagos(ctx: ContextoAgente): Promise<Respuest
       botPhone: ctx.botPhone,
       apiKey: cfg.ycloud_api_key ?? '',
       datos: {
-        monto: precio,  // asumimos el precio del producto
+        monto: precio,
+        moneda: cfg.moneda ?? null,
         metodo: null,
         numero_operacion: matchNumOp[1],
+        destinatario_ultimos: null,
+        destinatario_nombre: null,
         comprobante_url: null,
       },
     })
@@ -55,12 +59,13 @@ export async function ejecutarAgentePagos(ctx: ContextoAgente): Promise<Respuest
 
   // ── Enviar instrucciones de pago ───────────────────────────────────────────
   const metodos: string[] = []
-  if (cfg.yape_numero) metodos.push(`💜 *YAPE*: ${cfg.yape_numero}`)
-  if (cfg.plin_numero) metodos.push(`💙 *PLIN*: ${cfg.plin_numero}`)
-  if (cfg.bcp_cuenta) {
-    const titular = cfg.bcp_titular ? `\n   Titular: ${cfg.bcp_titular}` : ''
-    metodos.push(`🏦 *BCP*: ${cfg.bcp_cuenta}${titular}`)
-  }
+  if (cfg.yape_numero)      metodos.push(`💜 *Yape*: ${cfg.yape_numero}`)
+  if (cfg.plin_numero)      metodos.push(`💙 *Plin*: ${cfg.plin_numero}`)
+  if (cfg.bcp_cuenta)       metodos.push(`🏦 *BCP*: ${cfg.bcp_cuenta}${cfg.bcp_titular ? ` · ${cfg.bcp_titular}` : ''}`)
+  if (cfg.bbva_cuenta)      metodos.push(`🔵 *BBVA*: ${cfg.bbva_cuenta}${cfg.bbva_titular ? ` · ${cfg.bbva_titular}` : ''}`)
+  if (cfg.interbank_cuenta) metodos.push(`🟢 *Interbank*: ${cfg.interbank_cuenta}`)
+  if (cfg.mercadopago_link) metodos.push(`💛 *MercadoPago*: ${cfg.mercadopago_link}`)
+  if (cfg.paypal_link)      metodos.push(`🔷 *PayPal*: ${cfg.paypal_link}`)
 
   if (metodos.length === 0) {
     return {
@@ -70,7 +75,7 @@ export async function ejecutarAgentePagos(ctx: ContextoAgente): Promise<Respuest
     }
   }
 
-  const texto = `¡Todo listo${nc}! Para obtener acceso inmediato a *${nombre}* transfiere *$${precio}* a:
+  const texto = `¡Todo listo${nc}! Para obtener acceso inmediato a *${nombre}* transfiere *${sim}${precio}* a:
 
 ${metodos.join('\n')}
 

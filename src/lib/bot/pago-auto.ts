@@ -1,13 +1,16 @@
 // Auto-confirmación de pagos para productos digitales
-// Valida el monto contra el precio del inventario y confirma automáticamente si cuadra.
+// Valida monto + destino y confirma automáticamente si todo cuadra.
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { enviarTexto } from '@/lib/whatsapp/ycloud'
 
 export interface DatosPago {
   monto: number | null
+  moneda: string | null
   metodo: string | null
   numero_operacion: string | null
+  destinatario_ultimos: string | null   // últimos dígitos del número/cuenta destino
+  destinatario_nombre: string | null
   comprobante_url?: string | null
 }
 
@@ -17,20 +20,89 @@ export interface ResultadoPago {
   pagoId?: string
 }
 
-/**
- * Procesa un comprobante de pago de producto digital.
- * Si el monto coincide con el precio del inventario (±10%), auto-confirma y entrega acceso.
- * Si no coincide o no hay monto legible, crea pago pendiente para revisión manual.
- */
+interface ConfigPagos {
+  yape_numero?: string | null
+  plin_numero?: string | null
+  bcp_cuenta?: string | null
+  bcp_titular?: string | null
+  bbva_cuenta?: string | null
+  bbva_titular?: string | null
+  interbank_cuenta?: string | null
+  mercadopago_link?: string | null
+  paypal_link?: string | null
+  simbolo_moneda?: string | null
+  moneda?: string | null
+}
+
+/** Valida que los últimos N dígitos del comprobante coincidan con el número configurado */
+function validarUltimosDigitos(
+  configNumero: string | null | undefined,
+  comprobanteUltimos: string | null | undefined,
+  n: number,
+): boolean {
+  if (!configNumero || !comprobanteUltimos) return true // sin datos → no rechazar
+  const configFin = configNumero.replace(/\D/g, '').slice(-n)
+  const compFin   = comprobanteUltimos.replace(/\D/g, '').slice(-n)
+  return configFin === compFin
+}
+
+/** Valida el método y destino del comprobante contra la configuración del dueño */
+function validarDestino(datos: DatosPago, cfg: ConfigPagos): { ok: boolean; razon?: string } {
+  const m = datos.metodo
+
+  if (m === 'yape') {
+    if (!cfg.yape_numero) return { ok: true } // método no configurado → aceptar
+    // Yape no expone últimos dígitos del destino en el comprobante → solo verificar que el método esté activo
+    return { ok: true }
+  }
+
+  if (m === 'plin') {
+    if (!cfg.plin_numero) return { ok: true }
+    if (!validarUltimosDigitos(cfg.plin_numero, datos.destinatario_ultimos, 3)) {
+      return { ok: false, razon: `Número Plin destino (...${datos.destinatario_ultimos}) no coincide con el configurado (...${cfg.plin_numero.slice(-3)})` }
+    }
+    return { ok: true }
+  }
+
+  if (m === 'bcp') {
+    if (!cfg.bcp_cuenta) return { ok: true }
+    if (!validarUltimosDigitos(cfg.bcp_cuenta, datos.destinatario_ultimos, 4)) {
+      return { ok: false, razon: `Cuenta BCP destino (...${datos.destinatario_ultimos}) no coincide con la configurada (...${cfg.bcp_cuenta.replace(/\D/g, '').slice(-4)})` }
+    }
+    return { ok: true }
+  }
+
+  if (m === 'bbva') {
+    if (!cfg.bbva_cuenta) return { ok: true }
+    if (!validarUltimosDigitos(cfg.bbva_cuenta, datos.destinatario_ultimos, 4)) {
+      return { ok: false, razon: `Cuenta BBVA destino (...${datos.destinatario_ultimos}) no coincide` }
+    }
+    return { ok: true }
+  }
+
+  if (m === 'interbank') {
+    if (!cfg.interbank_cuenta) return { ok: true }
+    if (!validarUltimosDigitos(cfg.interbank_cuenta, datos.destinatario_ultimos, 4)) {
+      return { ok: false, razon: `Cuenta Interbank destino (...${datos.destinatario_ultimos}) no coincide` }
+    }
+    return { ok: true }
+  }
+
+  // mercadopago, paypal, scotiabank, transferencia, otro → aceptar sin validar dígitos
+  return { ok: true }
+}
+
 export async function procesarPagoDigital(params: {
   userId: string
   clientePhone: string   // con +
   botPhone: string       // con +
   apiKey: string
   datos: DatosPago
+  configPagos?: ConfigPagos
 }): Promise<ResultadoPago> {
   const admin = createAdminClient()
   const clientePhoneNorm = params.clientePhone.replace(/^\+/, '')
+  const simbolo = params.configPagos?.simbolo_moneda ?? 'S/'
 
   // Cargar conversación activa del cliente
   const { data: conv } = await admin
@@ -41,18 +113,17 @@ export async function procesarPagoDigital(params: {
     .maybeSingle()
 
   // Dedup por número de operación
-  if (params.datos.numero_operacion && conv?.id) {
+  if (params.datos.numero_operacion) {
     const { data: dup } = await admin
       .from('pagos_pendientes')
       .select('id')
       .eq('user_id', params.userId)
       .eq('numero_operacion', params.datos.numero_operacion)
       .maybeSingle()
-
     if (dup) {
       return {
         estado: 'pendiente',
-        mensajeCliente: 'Este comprobante ya fue registrado. Si crees que hay un error, escríbenos. 🙏',
+        mensajeCliente: 'Este comprobante ya fue registrado anteriormente. Si hay algún error, escríbenos. 🙏',
       }
     }
   }
@@ -68,7 +139,6 @@ export async function procesarPagoDigital(params: {
       .select('precio_venta, enlace_entrega, products(nombre_producto)')
       .eq('id', conv.inventario_id)
       .single()
-
     if (inv) {
       precioEsperado = Number(inv.precio_venta)
       enlaceEntrega = inv.enlace_entrega ?? null
@@ -77,16 +147,29 @@ export async function procesarPagoDigital(params: {
   }
 
   const nombreCliente = conv?.nombre_cliente ? ` ${conv.nombre_cliente}` : ''
-
-  // Determinar si auto-confirmar: monto conocido y dentro del ±10% del precio
   const montoRecibido = params.datos.monto
-  const esAutoconfirmable =
-    montoRecibido !== null &&
-    montoRecibido > 0 &&
+  const metodoStr = {
+    yape: 'Yape', plin: 'Plin', bcp: 'BCP', bbva: 'BBVA',
+    interbank: 'Interbank', scotiabank: 'Scotiabank',
+    mercadopago: 'MercadoPago', paypal: 'PayPal',
+  }[params.datos.metodo ?? ''] ?? params.datos.metodo ?? 'transferencia'
+
+  // Validar destino
+  const validacion = params.configPagos
+    ? validarDestino(params.datos, params.configPagos)
+    : { ok: true }
+
+  // Determinar si auto-confirmar:
+  // 1. Validación de destino ok
+  // 2. Monto conocido y dentro del ±15% del precio esperado
+  const montoOk = montoRecibido !== null && montoRecibido > 0 &&
     precioEsperado !== null &&
-    Math.abs(montoRecibido - precioEsperado) / precioEsperado <= 0.10
+    Math.abs(montoRecibido - precioEsperado) / precioEsperado <= 0.15
+
+  const esAutoconfirmable = validacion.ok && montoOk
 
   const estadoPago = esAutoconfirmable ? 'confirmado' : 'pendiente'
+  const montoStr = montoRecibido ? `${simbolo}${montoRecibido.toFixed(2)}` : 'monto no legible'
 
   // Registrar pago
   const { data: pagoInsert } = await admin
@@ -97,9 +180,10 @@ export async function procesarPagoDigital(params: {
       inventario_id: conv?.inventario_id ?? null,
       monto: montoRecibido,
       metodo: params.datos.metodo,
-      numero_operacion: params.datos.numero_operacion,
+      numero_operacion: params.datos.numero_operacion ?? null,
       comprobante_url: params.datos.comprobante_url ?? null,
       estado: estadoPago,
+      notas: !validacion.ok ? validacion.razon : (!montoOk && precioEsperado ? `Monto ${montoStr} no coincide con precio esperado ${simbolo}${precioEsperado.toFixed(2)}` : null),
     })
     .select('id')
     .single()
@@ -114,49 +198,35 @@ export async function procesarPagoDigital(params: {
     // Incrementar conversiones
     if (conv.inventario_id) {
       const { data: invData } = await admin
-        .from('inventario_bot')
-        .select('conversiones')
-        .eq('id', conv.inventario_id)
-        .single()
+        .from('inventario_bot').select('conversiones').eq('id', conv.inventario_id).single()
       if (invData) {
-        await admin
-          .from('inventario_bot')
+        await admin.from('inventario_bot')
           .update({ conversiones: ((invData as any).conversiones ?? 0) + 1 })
           .eq('id', conv.inventario_id)
       }
     }
 
-    const montoStr = montoRecibido ? `S/ ${montoRecibido.toFixed(2)}` : ''
-    const metodoStr = params.datos.metodo === 'yape' ? 'Yape' :
-                      params.datos.metodo === 'plin' ? 'Plin' :
-                      params.datos.metodo === 'bcp'  ? 'BCP' : 'transferencia'
-
     const mensajeCliente = enlaceEntrega
-      ? `🎉 ¡Pago confirmado${nombreCliente}! Recibí tu ${metodoStr}${montoStr ? ` de ${montoStr}` : ''}.\n\nAquí tienes tu acceso a *${nombreProducto}* 👇\n${enlaceEntrega}\n\n¡Disfrútalo! Cualquier duda estoy aquí 💪`
-      : `🎉 ¡Pago confirmado${nombreCliente}! En los próximos minutos te enviamos el acceso a *${nombreProducto}*. ¡Gracias por tu confianza! 💜`
+      ? `🎉 ¡Pago confirmado${nombreCliente}! Recibí tu ${metodoStr} de *${montoStr}*.\n\nAquí tienes tu acceso a *${nombreProducto}* 👇\n${enlaceEntrega}\n\n¡Disfrútalo! Cualquier duda estoy aquí 💪`
+      : `🎉 ¡Pago confirmado${nombreCliente}! En breve te enviamos el acceso a *${nombreProducto}*. ¡Gracias! 💜`
 
-    // Enviar acceso inmediatamente
-    await enviarTexto({
-      to: params.clientePhone,
-      text: mensajeCliente,
-      fromPhone: params.botPhone,
-      apiKey: params.apiKey,
-    })
+    await enviarTexto({ to: params.clientePhone, text: mensajeCliente, fromPhone: params.botPhone, apiKey: params.apiKey })
 
-    return {
-      estado: 'confirmado_auto',
-      mensajeCliente,
-      pagoId: pagoInsert?.id,
-    }
+    return { estado: 'confirmado_auto', mensajeCliente, pagoId: pagoInsert?.id }
   }
 
   // Pago pendiente de revisión manual
-  const montoStr = montoRecibido ? `S/ ${montoRecibido.toFixed(2)}` : 'monto no legible'
-  const mensajeCliente = `✅ ¡Recibí tu comprobante (${montoStr})! Lo estoy verificando y en breve te confirmo el acceso a *${nombreProducto}*. ¡Gracias${nombreCliente}! 🙏`
+  const razon = !validacion.ok
+    ? `el número destino no coincide con el configurado`
+    : `el monto de ${montoStr} no coincide exactamente con el precio del producto`
 
-  return {
-    estado: 'pendiente',
-    mensajeCliente,
-    pagoId: pagoInsert?.id,
-  }
+  const mensajeCliente = `✅ ¡Recibí tu comprobante de ${metodoStr} (${montoStr})${nombreCliente}! Lo estoy verificando — ${
+    !validacion.ok
+      ? 'hay una pequeña discrepancia en el destino, un momento.'
+      : precioEsperado && !montoOk
+        ? `el precio del producto es ${simbolo}${precioEsperado?.toFixed(2)}, verificando.`
+        : 'en breve te confirmo el acceso.'
+  } 🙏`
+
+  return { estado: 'pendiente', mensajeCliente, pagoId: pagoInsert?.id }
 }

@@ -32,7 +32,7 @@ export async function procesarMensaje(params: {
 
     admin
       .from('user_settings')
-      .select('yape_numero, plin_numero, bcp_cuenta, bcp_titular, bot_nombre, bot_phone, ycloud_api_key')
+      .select('yape_numero, plin_numero, bcp_cuenta, bcp_titular, bbva_cuenta, bbva_titular, interbank_cuenta, mercadopago_link, paypal_link, bot_nombre, bot_phone, ycloud_api_key, moneda, simbolo_moneda')
       .eq('user_id', params.userId)
       .maybeSingle(),
 
@@ -72,9 +72,16 @@ export async function procesarMensaje(params: {
     plin_numero: s?.plin_numero ?? null,
     bcp_cuenta: s?.bcp_cuenta ?? null,
     bcp_titular: s?.bcp_titular ?? null,
+    bbva_cuenta: s?.bbva_cuenta ?? null,
+    bbva_titular: s?.bbva_titular ?? null,
+    interbank_cuenta: s?.interbank_cuenta ?? null,
+    mercadopago_link: s?.mercadopago_link ?? null,
+    paypal_link: s?.paypal_link ?? null,
     bot_nombre: s?.bot_nombre ?? 'Asistente',
     bot_phone: s?.bot_phone ?? null,
     ycloud_api_key: s?.ycloud_api_key ?? null,
+    moneda: s?.moneda ?? 'PEN',
+    simbolo_moneda: s?.simbolo_moneda ?? 'S/',
   }
 
   const estado = ((conv?.estado as EstadoConversacion) ?? 'nuevo')

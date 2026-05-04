@@ -43,6 +43,7 @@ export async function ejecutarAgenteVentas(ctx: ContextoAgente): Promise<Respues
   const avatar = p.avatar_cliente
   const precioVenta = inv.precio_venta
   const precioAnchor = inv.precio_tachado ?? p.estrategia_precio?.precio_anchor ?? Math.round(precioVenta * 2.5)
+  const sim = ctx.config.simbolo_moneda ?? 'S/'
 
   const historialStr = ctx.historial
     .slice(-6)
@@ -55,7 +56,7 @@ export async function ejecutarAgenteVentas(ctx: ContextoAgente): Promise<Respues
   const instruccionPorEstado: Record<string, string> = {
     nuevo: `INSTRUCCIÓN: Primera vez que escribe. Adapta el guion de apertura a su mensaje. Genera curiosidad en 2-3 líneas. NO expliques el producto todavía. Termina con UNA sola pregunta corta.`,
     calificando: `INSTRUCCIÓN: Haz UNA sola pregunta de calificación rápida basada en los dolores del avatar. Si en el historial ya hay suficiente contexto, pasa directo a presentación.`,
-    presentando: `INSTRUCCIÓN: Presenta el producto. Usa formato WhatsApp con negritas. Muestra precio anchor tachado (~$${precioAnchor}~) y precio real (*$${precioVenta}*). Menciona que el acceso es INMEDIATO al pagar. Termina con "¿Te lo envío ahora?" o similar.`,
+    presentando: `INSTRUCCIÓN: Presenta el producto. Usa formato WhatsApp con negritas. Muestra precio anchor tachado (~${sim}${precioAnchor}~) y precio real (*${sim}${precioVenta}*). Menciona que el acceso es INMEDIATO al pagar. Termina con "¿Te lo envío ahora?" o similar.`,
     objeciones: `INSTRUCCIÓN: Responde la objeción directamente. Usa la respuesta preescrita más cercana. Recuerda que es acceso instantáneo y bajo precio. Reafirma el valor. Una frase de escasez/urgencia al final.`,
     cerrando: `INSTRUCCIÓN: El cliente está casi listo. Usa el guion de cierre. Recuerda: acceso inmediato, precio especial. Dile que solo necesita hacer la transferencia y en segundos recibe el acceso. Invítalo a pagar.`,
   }
@@ -68,7 +69,7 @@ export async function ejecutarAgenteVentas(ctx: ContextoAgente): Promise<Respues
 Nombre: ${p.nombre_producto}
 Tipo: ${p.tipo_producto ?? 'producto digital'}
 Transformación: "${p.promesa_before ?? '...'}" → "${p.promesa_after ?? '...'}"
-Precio tachado: ~$${precioAnchor}~ | Precio real: *$${precioVenta}*
+Precio tachado: ~${sim}${precioAnchor}~ | Precio real: *${sim}${precioVenta}*
 Entrega: acceso INMEDIATO al confirmar pago (link directo)
 ${inv.prueba_social ? `Prueba social: ${inv.prueba_social}` : ''}
 ${inv.escasez_texto ? `Escasez: ${inv.escasez_texto}` : ''}
@@ -85,10 +86,10 @@ Cómo habla: "${avatar.cita_directa}"` : 'No disponible'}
 ${v?.guion_apertura_whatsapp ?? `Hola! ¿Buscas ${p.promesa_after ?? 'mejorar tus resultados'}? Tengo algo justo para ti.`}
 
 [PRESENTACIÓN]:
-${v?.guion_presentacion_producto ?? `${p.nombre_producto}: ${p.subtitulo ?? ''}\nAcceso inmediato · Solo $${precioVenta}`}
+${v?.guion_presentacion_producto ?? `${p.nombre_producto}: ${p.subtitulo ?? ''}\nAcceso inmediato · Solo ${sim}${precioVenta}`}
 
 [CIERRE]:
-${v?.guion_cierre ?? `¿Te lo envío ahora? Es solo $${precioVenta} y el acceso llega al instante.`}
+${v?.guion_cierre ?? `¿Te lo envío ahora? Es solo ${sim}${precioVenta} y el acceso llega al instante.`}
 
 [OBJECIONES]:
 ${v?.respuestas_objeciones?.map(o => `"${o.objecion}" → ${o.respuesta}`).join('\n') ?? 'Usa los dolores del avatar.'}
